@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name        The Pirate Bay Cleaner
-// @description	THERE ARE TOO MANY FEATURES TO LIST IN THE DESCRIPTION! Auto Sorting, Torrentifying, Theme Change, Search Change, SSL/HTTPS and more...
-// @namespace   https://greasyfork.org/scripts/1573-the-pirate-bay-cleaner
+// @description	Auto Sorting, Torrentifying, Theme Change, Search Change, SSL/HTTPS and more...
+// @namespace   https://github.com/Shoehart/The-Pirate-Bay-Cleaner
 // @icon        https://i.imgur.com/ZYNsXKW.png
-// @license 	The Pirate Bay Cleaner is licensed under a Creative Commons Attribution-ShareAlike 3.0 Unported License.
+// @license 	  The Pirate Bay Cleaner is licensed under a Creative Commons Attribution-ShareAlike 3.0 Unported License.
 // @author      BoKu
 // @contributor stuK
 // @contributor Moby2kBug
@@ -16,10 +16,810 @@
 // @match     *://*/*
 // ==/UserScript==
 /* Check for proxy sites, turn off if not in use. */
-//var GoogleSiteID = $('meta[name=google-site-verification]').attr("content");
-//if( GoogleSiteID == 'bERYeomIC5eBWlPLupPPYPYGA9GvAUKzFHh3WIw24Xs' )
+
+/* Convert milliseconds to real time HH:MM:SS */
+function msToTime(s) {
+  var arrTime = new Array();
+  var ms = s % 1000; s = (s - ms) / 1000;
+  var secs = s % 60; s = (s - secs) / 60;
+  var mins = s % 60;
+  var hrs = (s - mins) / 60;
+  strHrs = "0" + hrs; strHrs = strHrs.substr(strHrs.length - 2);
+  strMins = "0" + mins; strMins = strMins.substr(strMins.length - 2);
+  strSecs = "0" + secs; strSecs = strSecs.substr(strSecs.length - 2);
+  if (hrs > 0) {
+    arrTime['TheTime'] = strHrs + ':' + strMins;
+    arrTime['TheTimeAsWords'] = hrs + " Hours and " + mins + " Minutes";
+  }
+  else if (mins > 0) {
+    arrTime['TheTime'] = strMins + ':' + strSecs;
+    arrTime['TheTimeAsWords'] = mins + " Minutes and " + secs + " Seconds";
+  }
+  else if (secs > 0) {
+    arrTime['TheTime'] = strSecs;
+    arrTime['TheTimeAsWords'] = secs + " Seconds";
+  }
+  return arrTime;
+}
+/* The page refresh function */
+function TogglePageRefresh() {
+  if (!PageRefresher) {
+    setCookie(url, 'AutoRefresh', 999);
+    refresh_duration = GM_getValue("refresh_duration");
+    $("#refresh_button").attr('onmouseover', "this.style.background='url(//i.imgur.com/u4tV1h1.png) 0px 40px'");
+    $("#refresh_button").attr('onmouseout', "this.style.background='url(//i.imgur.com/u4tV1h1.png) 0px 0px'");
+    $("#refresh_button").attr('title', "Turn Off Auto Refresh");
+    var noti_bubble = document.createElement('div');
+    noti_bubble.id = "noti_bubble";
+    noti_bubble.style.cssText = 'z-index:9999; max-width:80px; position:absolute; padding:1px 2px 1px 2px; color:white; font-weight:bold; border-radius:30px; float:right; box-shadow:1px 1px 1px gray; left:' + $("#refresh_button").position().left + 'px;';
+    $('#tpbc_btn_container').append(noti_bubble);
+    /* Set the initial countdown time appearance */
+    var TimeDetails = msToTime(refresh_duration);
+    $('#noti_bubble').html(TimeDetails['TheTime']);
+    noti_bubble.title = TimeDetails['TheTimeAsWords'] + " Until Refresh";
+    if (refresh_duration <= 60000) {
+      noti_bubble.style.backgroundColor = "red";
+    } else if (refresh_duration <= 300000) {
+      noti_bubble.style.backgroundColor = "orange";
+    } else {
+      noti_bubble.style.backgroundColor = "green";
+    }
+    /* Now with the timer running, make sure we're keeping up appearances ;) */
+    PageRefresher = setInterval(function () {
+      refresh_duration = refresh_duration - 1000;
+      var TimeDetails = msToTime(refresh_duration);
+      $('#noti_bubble').html(TimeDetails['TheTime']);
+      noti_bubble.title = TimeDetails['TheTimeAsWords'] + " Until Refresh";
+      if (refresh_duration <= 60000) {
+        noti_bubble.style.backgroundColor = "red";
+      } else if (refresh_duration <= 300000) {
+        noti_bubble.style.backgroundColor = "orange";
+      } else {
+        noti_bubble.style.backgroundColor = "green";
+      }
+      if (refresh_duration <= 0) {
+        document.title = "Refreshing...";
+        location.reload();
+      }
+    }, 1000);
+  } else if (PageRefresher) {
+    /* Remove etc. when no timer running */
+    setCookie(url, 'AutoRefresh', -999);
+    clearInterval(PageRefresher);
+    $("#refresh_button").attr('onmouseover', "this.style.background='url(//i.imgur.com/u4tV1h1.png) 0px 0px'");
+    $("#refresh_button").attr('onmouseout', "this.style.background='url(//i.imgur.com/u4tV1h1.png) 0px 40px'");
+    $("#refresh_button").attr('title', "Turn On Auto Refresh");
+    $('#noti_bubble').remove();
+    PageRefresher = false;
+  }
+}
+/* This shows a black translucent background, exactly like a lightbox background */
+function LightboxBG() {
+  $("body").append($('<div id="tpbc_lightbox" style="width:100%!important;height:100%!important;position:fixed;z-index:1000;top:0;left:0;background:#000 url(\'//i.imgur.com/ByMmVtd.gif\');opacity:0.75;background-repeat:no-repeat;background-attachment:fixed;background-position:center; "><img src="//i.imgur.com/NMFMQRZ.png" title="Close" style="position:fixed; top:5px;right:5px; cursor:pointer"></div>').hide().fadeIn('fast'));
+}
+/* Depending on the type, url and nobg. type can be www for websites, img for an image, code for text or settings for TPBC settings window. With www, you'll also need the url to be set and you can choose to use nobg or not, which is whether or not you want to show the black background */
+function Lightbox(type, url, nobg) {
+  /* if nobg has nothing set, then show the background */
+  if (!nobg) LightboxBG();
+  switch (type) {
+    /* Show a website */
+    case 'www':
+      if (url) {
+        window.Escapable = true;
+        var scrWidth = $(window).width(); var scrHeight = $(window).height();
+        $('<iframe id="tpbc_holder" style="width:' + (scrWidth - 100) + 'px!important;height:' + (scrHeight - 100) + 'px!important;position:fixed;z-index:1002;top:50px;left:50px;background:#ffffff;display:none;" src="' + $.trim(url) + '" />').appendTo("body");
+        $("#tpbc_holder").load(function () {
+          $('#tpbc_holder').fadeIn('fast');
+          $("#tpbc_lightbox").css({ 'background': '#000' });
+        });
+      }
+      SettingsChanged = false;
+      break;
+    /*  Show an image */
+    case 'img':
+      if (url) {
+        window.Escapable = true;
+        $('<div id="tpbc_holder" style="cursor:pointer;width:100%!important;height:100%!important;position:fixed;z-index:1002;top:0;left:0;background:url(\'' + $.trim(url) + '\');background-repeat:no-repeat;background-attachment:fixed;background-position:center;"></div>').appendTo("body");
+      }
+      SettingsChanged = false;
+      break;
+    /* Show text */
+    case 'code':
+      if (url) {
+        window.Escapable = true;
+        var scrWidth = $(window).width(); var scrHeight = $(window).height();
+        $('<div id="tpbc_holder" style="width:' + (scrWidth - 100) + 'px!important;height:' + (scrHeight - 100) + 'px!important;position:fixed;z-index:1002;top:50px;left:50px;background:#ffffff;font-size:1.3em;overflow:auto;text-align:left;padding:5px;" >' + $.trim(url) + '</div>').appendTo("body");
+      }
+      SettingsChanged = false;
+      break;
+    /* Build and show TPBC settings window */
+    case 'settings':
+      SettingsChanged = false;
+      scrWidth = $(window).width(); scrHeight = $(window).height();
+      $('<div id="tpbc_holder_form" style="width:' + (((scrWidth / 2) / scrWidth) * 100) + '%!important;height:' + (scrHeight - 100) + 'px!important;max-height:' + (scrHeight - 100) + 'px!important;position:fixed;z-index:1002;top:50px;left:' + ((((scrWidth / 2) / 2) / scrWidth) * 100) + '%!important;background:#ffffff;-webkit-border-radius: 10px;border-radius:10px;-moz-border-radius:10px;border:10px solid #000;overflow:auto;color:#000000;">'
+        + '<h1 style="text-align:center;">The Pirate Bay Cleaner Settings</h1>'
+        + '<span id="tbpc_formcontents" style="padding:5px;width:95%!important;text-align:left;display:block;margin:auto;margin-bottom:5px!important;" ></span>'
+        + '</div>').appendTo("body");
+      $("<h2/>", { html: "Torrent Settings <label style=\"color:red\">All Settings Are Saved Instantly!</label>", style: "text-align:left;margin:5px 0px;font-size:1.1em;font-weight:normal;line-height:1.5em;" }).appendTo('#tbpc_formcontents');
+      var tpbc_torrentify = document.createElement('input');
+      tpbc_torrentify.type = 'checkbox';
+      tpbc_torrentify.checked = torrentify;
+      tpbc_torrentify.addEventListener('click',
+        function () {
+          SettingsChanged = true;
+          GM_setValue('torrentify', this.checked);
+        }, false);
+      document.getElementById('tbpc_formcontents').appendChild(tpbc_torrentify);
+      $("<label/>", { html: "Show Download Torrent Icon<br>" }).appendTo('#tbpc_formcontents');
+      var tpbc_imdb = document.createElement('input');
+      tpbc_imdb.type = 'checkbox';
+      tpbc_imdb.checked = imdb;
+      tpbc_imdb.addEventListener('click',
+        function () {
+          SettingsChanged = true;
+          GM_setValue('imdb', this.checked);
+        }, false);
+      document.getElementById('tbpc_formcontents').appendChild(tpbc_imdb);
+      $("<label/>", { html: "Show IMDB Icon <small>(Opens IMDB.com in new window)</small><br>" }).appendTo('#tbpc_formcontents');
+      var tpbc_info = document.createElement('input');
+      tpbc_info.type = 'checkbox';
+      tpbc_info.checked = info;
+      tpbc_info.addEventListener('click',
+        function () {
+          SettingsChanged = true;
+          GM_setValue('info', this.checked);
+        }, false);
+      document.getElementById('tbpc_formcontents').appendChild(tpbc_info);
+      $("<label/>", { html: "Show Info Icon<br>" }).appendTo('#tbpc_formcontents');
+      var tpbc_alternate = document.createElement('input');
+      tpbc_alternate.type = 'checkbox';
+      tpbc_alternate.checked = alternate;
+      tpbc_alternate.addEventListener('click',
+        function () {
+          SettingsChanged = true;
+          GM_setValue('alternate', this.checked);
+        }, false);
+      document.getElementById('tbpc_formcontents').appendChild(tpbc_alternate);
+      $("<label/>", { html: "Show Search For Alternate Torrent Icon <small>(Search other torrent sites for this torrent)</small><br>" }).appendTo('#tbpc_formcontents');
+      var tpbc_ebay = document.createElement('input');
+      tpbc_ebay.type = 'checkbox';
+      tpbc_ebay.checked = ebay;
+      tpbc_ebay.addEventListener('click',
+        function () {
+          SettingsChanged = true;
+          GM_setValue('ebay', this.checked);
+        }, false);
+      document.getElementById('tbpc_formcontents').appendChild(tpbc_ebay);
+      $("<label/>", { html: "Show Buy On eBay Icon<br>" }).appendTo('#tbpc_formcontents');
+      var tpbc_amazon = document.createElement('input');
+      tpbc_amazon.type = 'checkbox';
+      tpbc_amazon.checked = amazon;
+      tpbc_amazon.addEventListener('click',
+        function () {
+          SettingsChanged = true;
+          GM_setValue('amazon', this.checked);
+        }, false);
+      document.getElementById('tbpc_formcontents').appendChild(tpbc_amazon);
+      $("<label/>", { html: "Show Buy On Amazon Icon<br>" }).appendTo('#tbpc_formcontents');
+      var tpbc_color_code = document.createElement('input');
+      tpbc_color_code.type = 'checkbox';
+      tpbc_color_code.checked = color_code;
+      tpbc_color_code.addEventListener('click',
+        function () {
+          SettingsChanged = true;
+          GM_setValue('color_code', this.checked);
+        }, false);
+      document.getElementById('tbpc_formcontents').appendChild(tpbc_color_code);
+      $("<label/>", { html: "Color Code Torrents Based Time Added<br>" }).appendTo('#tbpc_formcontents');
+      $("<label/>", { html: "Y-Day:", style: "margin-left:25px;margin-right:10px;" }).appendTo('#tbpc_formcontents');
+      $("<input/>", { type: "text", id: "tpbc_color_code_yday_color", disabled: "disabled", style: "margin-left:26px;width:25px;padding:2px;text-align:center; font-family:Verdana,Arial,Helvetica,sans-serif;margin-bottom:2px;background-color:" + color_code_yday + ";" }).appendTo('#tbpc_formcontents');
+      var tpbc_color_code_yday = document.createElement('input');
+      tpbc_color_code_yday.type = 'text';
+      tpbc_color_code_yday.value = color_code_yday;
+      tpbc_color_code_yday.maxlength = '7';
+      tpbc_color_code_yday.style.cssText = "width:125px;padding:2px;text-align:center;font-family:Verdana,Arial,Helvetica,sans-serif;margin-bottom:2px;";
+      tpbc_color_code_yday.placeholder = "Example: #FF7F7F";
+      tpbc_color_code_yday.addEventListener('keyup',
+        function () {
+          SettingsChanged = true;
+          document.getElementById('tpbc_color_code_yday_color').style.backgroundColor = this.value;
+          GM_setValue('color_code_yday', this.value);
+        }, false);
+      document.getElementById('tbpc_formcontents').appendChild(tpbc_color_code_yday);
+      $("<br>").appendTo('#tbpc_formcontents');
+      $("<label/>", { html: "Today:", style: "margin-left:25px;margin-right:10px;" }).appendTo('#tbpc_formcontents');
+      $("<input/>", { type: "text", id: "tpbc_color_code_today_color", disabled: "disabled", style: "margin-left:26px;width:25px;padding:2px;text-align:center; font-family:Verdana,Arial,Helvetica,sans-serif;margin-bottom:2px;background-color:" + color_code_today + ";" }).appendTo('#tbpc_formcontents');
+      var tpbc_color_code_today = document.createElement('input');
+      tpbc_color_code_today.type = 'text';
+      tpbc_color_code_today.value = color_code_today;
+      tpbc_color_code_today.maxlength = '7';
+      tpbc_color_code_today.style.cssText = "width:125px;padding:2px;text-align:center;font-family:Verdana,Arial,Helvetica,sans-serif;margin-bottom:2px;";
+      tpbc_color_code_today.placeholder = "Example: #FFE77F";
+      tpbc_color_code_today.addEventListener('keyup',
+        function () {
+          SettingsChanged = true;
+          document.getElementById('tpbc_color_code_today_color').style.backgroundColor = this.value;
+          GM_setValue('color_code_today', this.value);
+        }, false);
+      document.getElementById('tbpc_formcontents').appendChild(tpbc_color_code_today);
+      $("<br>").appendTo('#tbpc_formcontents');
+      $("<label/>", { html: "xx Minutes:", style: "margin-left:25px;margin-right:10px;" }).appendTo('#tbpc_formcontents');
+      $("<input/>", { type: "text", id: "tpbc_color_code_minutes_color", disabled: "disabled", style: "width:25px;padding:2px;text-align:center; font-family:Verdana,Arial,Helvetica,sans-serif;margin-bottom:2px;background-color:" + color_code_minutes + ";" }).appendTo('#tbpc_formcontents');
+      var tpbc_color_code_minutes = document.createElement('input');
+      tpbc_color_code_minutes.type = 'text';
+      tpbc_color_code_minutes.value = color_code_minutes;
+      tpbc_color_code_minutes.maxlength = '7';
+      tpbc_color_code_minutes.style.cssText = "width:125px;padding:2px;text-align:center;font-family:Verdana,Arial,Helvetica,sans-serif;margin-bottom:2px;";
+      tpbc_color_code_minutes.placeholder = "Example: #7FFF8C";
+      tpbc_color_code_minutes.addEventListener('keyup',
+        function () {
+          SettingsChanged = true;
+          document.getElementById('tpbc_color_code_minutes_color').style.backgroundColor = this.value;
+          GM_setValue('color_code_minutes', this.value);
+        }, false);
+      document.getElementById('tbpc_formcontents').appendChild(tpbc_color_code_minutes);
+      $("<br>").appendTo('#tbpc_formcontents');
+      var tpbc_trust = document.createElement('input');
+      tpbc_trust.type = 'checkbox';
+      tpbc_trust.checked = trust;
+      tpbc_trust.addEventListener('click',
+        function () {
+          SettingsChanged = true;
+          GM_setValue('trust', this.checked);
+        }, false);
+      document.getElementById('tbpc_formcontents').appendChild(tpbc_trust);
+      $("<label/>", { html: "Remove Torrents That Are Not From Trusted Uploaders (<img src=\"/static/img/vip.gif\" title=\"VIP\" >&nbsp;<img src=\"/static/img/trusted.png\" title=\"Trusted\" >&nbsp;<img src=\"/static/img/helper.png\" title=\"Helper\" >&nbsp;<img src=\"/static/img/moderator.gif\" title=\"Moderator\" >&nbsp;<img src=\"/static/img/supermod.png\" title=\"Supermod\" >&nbsp;<img src=\"/static/img/admin.gif\" title=\"Admin\" >)<br>" }).appendTo('#tbpc_formcontents');
+      var tpbc_filter = document.createElement('input');
+      tpbc_filter.type = 'checkbox';
+      tpbc_filter.checked = filter;
+      tpbc_filter.addEventListener('click',
+        function () {
+          SettingsChanged = true;
+          GM_setValue('filter', this.checked);
+        }, false);
+      document.getElementById('tbpc_formcontents').appendChild(tpbc_filter);
+      $("<label/>", { html: "Remove Torrents Based On Keywords <small>(Not case sensitive, words are separated by a pipe | )</small><br>" }).appendTo('#tbpc_formcontents');
+      $("<label/>", { html: "Keywords:", style: "margin-left:25px;margin-right:10px;" }).appendTo('#tbpc_formcontents');
+      var tpbc_filter_text = document.createElement('input');
+      tpbc_filter_text.type = 'text';
+      tpbc_filter_text.value = filter_text;
+      tpbc_filter_text.style.cssText = "width:500px;padding:2px;";
+      tpbc_filter_text.placeholder = "Example: cam|ts|camrip|tsync|ts2dvd|telesync2dvd|720p-ts|telesync|";
+      tpbc_filter_text.addEventListener('keyup',
+        function () {
+          SettingsChanged = true;
+          GM_setValue('filter_text', this.value);
+        }, false);
+      document.getElementById('tbpc_formcontents').appendChild(tpbc_filter_text);
+      $("<br>").appendTo('#tbpc_formcontents');
+
+      var tpbc_sizecontrol = document.createElement('input');
+      tpbc_sizecontrol.type = 'checkbox';
+      tpbc_sizecontrol.checked = sizecontrol;
+      tpbc_sizecontrol.id = 'tpbc_sizecontrol';
+      tpbc_sizecontrol.addEventListener('click',
+        function () {
+          SettingsChanged = true;
+          GM_setValue('sizecontrol', this.checked);
+        }, false);
+      document.getElementById('tbpc_formcontents').appendChild(tpbc_sizecontrol);
+      $("<label/>", { html: "Remove Too Small Torrents<br>" }).appendTo('#tbpc_formcontents');
+      $("<label/>", { html: "Size:", style: "margin-left:25px;margin-right:10px;" }).appendTo('#tbpc_formcontents');
+      var tpbc_sizecontrol_size = document.createElement('input');
+      tpbc_sizecontrol_size.type = 'number';
+      tpbc_sizecontrol_size.id = 'tpbc_sizecontrol_size';
+      tpbc_sizecontrol_size.value = sizecontrol_size;
+      tpbc_sizecontrol_size.style.cssText = "width:100px;padding:2px;";
+      tpbc_sizecontrol_size.placeholder = "6";
+      tpbc_sizecontrol_size.addEventListener('keyup',
+        function () {
+          SettingsChanged = true;
+          GM_setValue('sizecontrol_size', this.value);
+        }, false);
+      document.getElementById('tbpc_formcontents').appendChild(tpbc_sizecontrol_size);
+      $("<label/>", { html: "Type:", style: "margin-left:10px;margin-right:10px;" }).appendTo('#tbpc_formcontents');
+      var tpbc_sizecontrol_type = document.createElement('select');
+      tpbc_sizecontrol_type.id = 'tpbc_sizecontrol_type';
+      tpbc_sizecontrol_type.style.cssText = "width:100px;padding:2px;text-align:center; font-family:Verdana,Arial,Helvetica,sans-serif;margin-bottom:2px;";
+      tpbc_sizecontrol_type.addEventListener('change', function () {
+        SettingsChanged = true;
+        GM_setValue('sizecontrol_type', this.value);
+      }, false);
+      document.getElementById('tbpc_formcontents').appendChild(tpbc_sizecontrol_type);
+      var type_3 = document.createElement("option");
+      type_3.value = 'KiB';
+      type_3.innerHTML = 'KiB';
+      if (sizecontrol_type == 'KiB') type_3.selected = true;
+      tpbc_sizecontrol_type.appendChild(type_3);
+      var type_2 = document.createElement("option");
+      type_2.value = 'MiB';
+      type_2.innerHTML = 'MiB';
+      if (sizecontrol_type == 'MiB') type_2.selected = true;
+      tpbc_sizecontrol_type.appendChild(type_2);
+      var type_1 = document.createElement("option");
+      type_1.value = 'GiB';
+      type_1.innerHTML = 'GiB';
+      if (sizecontrol_type == 'GiB') type_1.selected = true;
+      tpbc_sizecontrol_type.appendChild(type_1);
+      $("<br>").appendTo('#tbpc_formcontents');
+      var tpbc_pornremove = document.createElement('input');
+      tpbc_pornremove.type = 'checkbox';
+      tpbc_pornremove.checked = pornremove;
+      tpbc_pornremove.addEventListener('click',
+        function () {
+          SettingsChanged = true;
+          GM_setValue('pornremove', this.checked);
+          if (this.checked == true) {
+            $('#tpbc_pornfilter').prop('disabled', true);
+            $('#tpbc_pornfilter_text').prop('disabled', true);
+          } else {
+            $('#tpbc_pornfilter').prop('disabled', false);
+            $('#tpbc_pornfilter_text').prop('disabled', false);
+          }
+        }, false);
+      document.getElementById('tbpc_formcontents').appendChild(tpbc_pornremove);
+      $("<label/>", { html: "Remove All <b style=\"color:red\">Porn</b><br>" }).appendTo('#tbpc_formcontents');
+      var tpbc_pornfilter = document.createElement('input');
+      tpbc_pornfilter.type = 'checkbox';
+      tpbc_pornfilter.checked = pornfilter;
+      tpbc_pornfilter.id = 'tpbc_pornfilter';
+      if (pornremove == true) {
+        tpbc_pornfilter.disabled = true;
+      } else {
+        tpbc_pornfilter.disabled = false;
+      }
+      tpbc_pornfilter.addEventListener('click',
+        function () {
+          SettingsChanged = true;
+          GM_setValue('pornfilter', this.checked);
+        }, false);
+      document.getElementById('tbpc_formcontents').appendChild(tpbc_pornfilter);
+      $("<label/>", { html: "Remove <b style=\"color:red\">Porn</b> Based On Keywords <small>(Not case sensitive, words are separated by a pipe | )</small><br>" }).appendTo('#tbpc_formcontents');
+      $("<label/>", { html: "Keywords:", style: "margin-left:25px;margin-right:10px;" }).appendTo('#tbpc_formcontents');
+      var tpbc_pornfilter_text = document.createElement('input');
+      tpbc_pornfilter_text.type = 'text';
+      tpbc_pornfilter_text.id = 'tpbc_pornfilter_text';
+      if (pornremove == true) {
+        tpbc_pornfilter_text.disabled = true;
+      } else {
+        tpbc_pornfilter_text.disabled = false;
+      }
+      tpbc_pornfilter_text.value = pornfilter_text;
+      tpbc_pornfilter_text.style.cssText = "width:500px;padding:2px;";
+      tpbc_pornfilter_text.placeholder = "Example: xxx|cam|pussy|vagina|ts|milf|porn|camrip|vhs";
+      tpbc_pornfilter_text.addEventListener('keyup',
+        function () {
+          SettingsChanged = true;
+          GM_setValue('pornfilter_text', this.value);
+        }, false);
+      document.getElementById('tbpc_formcontents').appendChild(tpbc_pornfilter_text);
+      $("<br>").appendTo('#tbpc_formcontents');
+      var tpbc_magnet = document.createElement('input');
+      tpbc_magnet.type = 'checkbox';
+      tpbc_magnet.checked = magnet;
+      tpbc_magnet.addEventListener('click',
+        function () {
+          SettingsChanged = true;
+          GM_setValue('magnet', this.checked);
+        }, false);
+      document.getElementById('tbpc_formcontents').appendChild(tpbc_magnet);
+      $("<label/>", { html: "Remove Magnet Links<br>" }).appendTo('#tbpc_formcontents');
+      var tpbc_anonymous = document.createElement('input');
+      tpbc_anonymous.type = 'checkbox';
+      tpbc_anonymous.checked = anonymous;
+      tpbc_anonymous.addEventListener('click',
+        function () {
+          SettingsChanged = true;
+          GM_setValue('anonymous', this.checked);
+        }, false);
+      document.getElementById('tbpc_formcontents').appendChild(tpbc_anonymous);
+      $("<label/>", { html: "Remove \"Anonymous Download\" Links<br>" }).appendTo('#tbpc_formcontents');
+      var tpbc_images = document.createElement('input');
+      tpbc_images.type = 'checkbox';
+      tpbc_images.checked = images;
+      tpbc_images.addEventListener('click',
+        function () {
+          SettingsChanged = true;
+          GM_setValue('images', this.checked);
+        }, false);
+      document.getElementById('tbpc_formcontents').appendChild(tpbc_images);
+      $("<label/>", { html: "Click Cover Image Icon To Open Cover Image<br>" }).appendTo('#tbpc_formcontents');
+      var tpbc_comments = document.createElement('input');
+      tpbc_comments.type = 'checkbox';
+      tpbc_comments.checked = comments;
+      tpbc_comments.addEventListener('click',
+        function () {
+          SettingsChanged = true;
+          GM_setValue('comments', this.checked);
+        }, false);
+      document.getElementById('tbpc_formcontents').appendChild(tpbc_comments);
+      $("<label/>", { html: "Click Comments Icon To Open Comments<br>" }).appendTo('#tbpc_formcontents');
+      var tpbc_loadallcomments = document.createElement('input');
+      tpbc_loadallcomments.type = 'checkbox';
+      tpbc_loadallcomments.checked = loadallcomments;
+      tpbc_loadallcomments.addEventListener('click',
+        function () {
+          SettingsChanged = true;
+          GM_setValue('loadallcomments', this.checked);
+        }, false);
+      document.getElementById('tbpc_formcontents').appendChild(tpbc_loadallcomments);
+      $("<label/>", { html: "All comments will be shown on each torrent details page.<br>" }).appendTo('#tbpc_formcontents');
+      var tpbc_save_history = document.createElement('input');
+      tpbc_save_history.type = 'checkbox';
+      tpbc_save_history.checked = save_history;
+      tpbc_save_history.addEventListener('click',
+        function () {
+          SettingsChanged = true;
+          GM_setValue('save_history', this.checked);
+          if (this.checked == true) {
+            $('#delete_history').fadeIn('slow', function () { });
+          } else {
+            $('#delete_history').fadeOut('slow', function () { });
+          }
+        }, false);
+      document.getElementById('tbpc_formcontents').appendChild(tpbc_save_history);
+      $("<label/>", { html: "Remember Downloaded <small>(This unchecked will NOT clear any history. MAY increase site loading time.)</small><br>" }).appendTo('#tbpc_formcontents');
+      var tpbc_delete_history = document.createElement('input');
+      tpbc_delete_history.type = 'button';
+      tpbc_delete_history.value = 'Clear History';
+      tpbc_delete_history.id = 'delete_history';
+      if (save_history == true) {
+        tpbc_delete_history.style.cssText = "margin-left:25px;width:125px;padding:2px;";
+      } else {
+        tpbc_delete_history.style.cssText = "margin-left:25px;width:125px;padding:2px;display:none;";
+      }
+      tpbc_delete_history.addEventListener('click',
+        function () {
+          SettingsChanged = true;
+          GM_setValue("torrent_history", '');
+          alert('History Cleared');
+        }, false);
+      document.getElementById('tbpc_formcontents').appendChild(tpbc_delete_history);
+      $("<h2/>", { html: "Other Settings <label style=\"color:red\">All Settings Are Saved Instantly!</label>", style: "text-align:left;margin:5px 0px;font-size:1.1em;font-weight:normal;line-height:1.5em;" }).appendTo('#tbpc_formcontents');
+      var tpbc_remotetorrent = document.createElement('input');
+      tpbc_remotetorrent.type = 'checkbox';
+      tpbc_remotetorrent.checked = remotetorrent;
+      tpbc_remotetorrent.addEventListener('click',
+        function () {
+          SettingsChanged = true;
+          GM_setValue('remotetorrent', this.checked);
+        }, false);
+      document.getElementById('tbpc_formcontents').appendChild(tpbc_remotetorrent);
+      $("<label/>", { html: "Show Button To Launch Remote Web Client Service<br>" }).appendTo('#tbpc_formcontents');
+      $("<label/>", { html: "Client:", style: "margin-left:25px;margin-right:10px;" }).appendTo('#tbpc_formcontents');
+      var tpbc_remotetorrent_client = document.createElement('select');
+      tpbc_remotetorrent_client.id = 'tpbc_remotetorrent_client';
+      tpbc_remotetorrent_client.style.cssText = "width:125px;padding:2px;text-align:center; font-family:Verdana,Arial,Helvetica,sans-serif;margin-bottom:2px;";
+      tpbc_remotetorrent_client.addEventListener('change', function () {
+        SettingsChanged = true;
+        GM_setValue('remotetorrent_client', this.value);
+        if (this.value == '4') {
+          $('#transmission_url').fadeIn('slow', function () { });
+        } else {
+          $('#transmission_url').fadeOut('slow', function () { });
+        }
+      }, false);
+      document.getElementById('tbpc_formcontents').appendChild(tpbc_remotetorrent_client);
+      var client_1 = document.createElement("option");
+      client_1.value = '1';
+      client_1.innerHTML = 'µTorrent';
+      if (remotetorrent_client == '1') client_1.selected = true;
+      tpbc_remotetorrent_client.appendChild(client_1);
+      var client_2 = document.createElement("option");
+      client_2.value = '2';
+      client_2.innerHTML = 'Vuze';
+      if (remotetorrent_client == '2') client_2.selected = true;
+      tpbc_remotetorrent_client.appendChild(client_2);
+      var client_3 = document.createElement("option");
+      client_3.value = '3';
+      client_3.innerHTML = 'BitTorrent';
+      if (remotetorrent_client == '3') client_3.selected = true;
+      tpbc_remotetorrent_client.appendChild(client_3);
+      var client_4 = document.createElement("option");
+      client_4.value = '4';
+      client_4.innerHTML = 'Transmission';
+      if (remotetorrent_client == '4') client_4.selected = true;
+      tpbc_remotetorrent_client.appendChild(client_4);
+      var client_4_url = document.createElement("input");
+      client_4_url.type = 'text';
+      client_4_url.id = 'transmission_url';
+      client_4_url.value = transmission_url;
+      if (remotetorrent_client == '4') {
+        client_4_url.style.cssText = "width:500px;padding:2px;";
+      } else {
+        client_4_url.style.cssText = "width:500px;padding:2px;display:none;";
+      }
+      client_4_url.placeholder = "Example: http://192.168.178.100:9090";
+      client_4_url.addEventListener('keyup',
+        function () {
+          SettingsChanged = true;
+          GM_setValue('transmission_url', $.trim(this.value));
+        }, false);
+      document.getElementById('tbpc_formcontents').appendChild(client_4_url);
+      $("<br>").appendTo('#tbpc_formcontents');
+      var remotetorrent_client_mode_lightbox = document.createElement('input');
+      remotetorrent_client_mode_lightbox.style.cssText = "margin-left:25px;margin-right:10px;";
+      remotetorrent_client_mode_lightbox.name = 'radio2';
+      remotetorrent_client_mode_lightbox.type = 'radio';
+      if (remotetorrent_client_mode == 'lightbox') remotetorrent_client_mode_lightbox.checked = true;
+      remotetorrent_client_mode_lightbox.addEventListener('click',
+        function () {
+          SettingsChanged = true;
+          GM_setValue('remotetorrent_client_mode', 'lightbox');
+        }, false);
+      document.getElementById('tbpc_formcontents').appendChild(remotetorrent_client_mode_lightbox);
+      $("<label/>", { html: "Open Client In Lightbox" }).appendTo('#tbpc_formcontents');
+      var remotetorrent_client_mode_window = document.createElement('input');
+      remotetorrent_client_mode_window.style.cssText = "margin-left:33px;margin-right:10px;";
+      remotetorrent_client_mode_window.name = 'radio2';
+      remotetorrent_client_mode_window.type = 'radio';
+      if (remotetorrent_client_mode == 'window') remotetorrent_client_mode_window.checked = true;
+      remotetorrent_client_mode_window.addEventListener('click',
+        function () {
+          SettingsChanged = true;
+          GM_setValue('remotetorrent_client_mode', 'window');
+        }, false);
+      document.getElementById('tbpc_formcontents').appendChild(remotetorrent_client_mode_window);
+      $("<label/>", { html: "Open Client In New Window" }).appendTo('#tbpc_formcontents');
+      $("<br>").appendTo('#tbpc_formcontents');
+      var tpbc_https = document.createElement('input');
+      tpbc_https.type = 'checkbox';
+      tpbc_https.checked = https;
+      tpbc_https.addEventListener('click',
+        function () {
+          SettingsChanged = true;
+          GM_setValue('https', this.checked);
+        }, false);
+      document.getElementById('tbpc_formcontents').appendChild(tpbc_https);
+      $("<label/>", { html: "Always Use HTTPS<br>" }).appendTo('#tbpc_formcontents');
+      var tpbc_theme = document.createElement('input');
+      tpbc_theme.type = 'checkbox';
+      tpbc_theme.checked = theme;
+      tpbc_theme.addEventListener('click',
+        function () {
+          SettingsChanged = true;
+          GM_setValue('theme', this.checked);
+        }, false);
+      document.getElementById('tbpc_formcontents').appendChild(tpbc_theme);
+      $("<label/>", { html: "Use Dark Theme<br>" }).appendTo('#tbpc_formcontents');
+      var tpbc_duckduckgo = document.createElement('input');
+      tpbc_duckduckgo.type = 'checkbox';
+      tpbc_duckduckgo.checked = duckduckgo;
+      tpbc_duckduckgo.addEventListener('click',
+        function () {
+          SettingsChanged = true;
+          GM_setValue('duckduckgo', this.checked);
+        }, false);
+      document.getElementById('tbpc_formcontents').appendChild(tpbc_duckduckgo);
+      $("<label/>", { html: "Use DuckDuckGo As Search Replacement<br>" }).appendTo('#tbpc_formcontents');
+      var tpbc_stretch = document.createElement('input');
+      tpbc_stretch.type = 'checkbox';
+      tpbc_stretch.checked = stretch;
+      tpbc_stretch.addEventListener('click',
+        function () {
+          SettingsChanged = true;
+          GM_setValue('stretch', this.checked);
+        }, false);
+      document.getElementById('tbpc_formcontents').appendChild(tpbc_stretch);
+      $("<label/>", { html: "Stretch To Fit Width<br>" }).appendTo('#tbpc_formcontents');
+      var tpbc_ads = document.createElement('input');
+      tpbc_ads.type = 'checkbox';
+      tpbc_ads.checked = ads;
+      tpbc_ads.addEventListener('click',
+        function () {
+          SettingsChanged = true;
+          GM_setValue('ads', this.checked);
+        }, false);
+      document.getElementById('tbpc_formcontents').appendChild(tpbc_ads);
+      $("<label/>", { html: "Remove Adverts<br>" }).appendTo('#tbpc_formcontents');
+      var tpbc_single = document.createElement('input');
+      tpbc_single.type = 'checkbox';
+      tpbc_single.checked = single;
+      tpbc_single.addEventListener('click',
+        function () {
+          SettingsChanged = true;
+          GM_setValue('single', this.checked);
+          if (this.checked == true) setCookie('lw', 's', 999); else setCookie('lw', 'd', 999);
+        }, false);
+      document.getElementById('tbpc_formcontents').appendChild(tpbc_single);
+      $("<label/>", { html: "Use Single Line Instead Of Double Line<br>" }).appendTo('#tbpc_formcontents');
+      var tpbc_linkify_all = document.createElement('input');
+      tpbc_linkify_all.type = 'checkbox';
+      tpbc_linkify_all.checked = linkify_all;
+      tpbc_linkify_all.addEventListener('click',
+        function () {
+          SettingsChanged = true;
+          GM_setValue('linkify_all', this.checked);
+        }, false);
+      document.getElementById('tbpc_formcontents').appendChild(tpbc_linkify_all);
+      $("<label/>", { html: "Try To Lightbox External Links <small>(Will not work with sites that block being embedded)</small><br>" }).appendTo('#tbpc_formcontents');
+      var tpbc_faves = document.createElement('input');
+      tpbc_faves.type = 'checkbox';
+      tpbc_faves.checked = save_faves;
+      tpbc_faves.addEventListener('click',
+        function () {
+          SettingsChanged = true;
+          GM_setValue('save_faves', this.checked);
+        }, false);
+      document.getElementById('tbpc_formcontents').appendChild(tpbc_faves);
+      $("<label/>", { html: "Allow Saving of Favorite Users<br>" }).appendTo('#tbpc_formcontents');
+      var tpbc_refresh = document.createElement('input');
+      tpbc_refresh.type = 'checkbox';
+      tpbc_refresh.checked = refresh;
+      tpbc_refresh.addEventListener('click',
+        function () {
+          SettingsChanged = true;
+          GM_setValue('refresh', this.checked);
+        }, false);
+      document.getElementById('tbpc_formcontents').appendChild(tpbc_refresh);
+      $("<label/>", { html: "Enable Option to Refresh Current Page Every " }).appendTo('#tbpc_formcontents');
+      var tpbc_refresh_duration = document.createElement('select');
+      tpbc_refresh_duration.id = 'tpbc_remotetorrent_client';
+      tpbc_refresh_duration.style.cssText = "width:125px;padding:2px;text-align:center; font-family:Verdana,Arial,Helvetica,sans-serif;margin-bottom:2px;";
+      tpbc_refresh_duration.addEventListener('change', function () {
+        SettingsChanged = true;
+        GM_setValue('refresh_duration', this.value);
+      }, false);
+      document.getElementById('tbpc_formcontents').appendChild(tpbc_refresh_duration);
+      var time_1 = document.createElement("option");
+      time_1.value = '60000';
+      time_1.innerHTML = 'Minute';
+      if (refresh_duration_int == '60000') time_1.selected = true;
+      tpbc_refresh_duration.appendChild(time_1);
+      var time_1 = document.createElement("option");
+      time_1.value = '300000';
+      time_1.innerHTML = '5 Minutes';
+      if (refresh_duration_int == '300000') time_1.selected = true;
+      tpbc_refresh_duration.appendChild(time_1);
+      var time_1 = document.createElement("option");
+      time_1.value = '600000';
+      time_1.innerHTML = '10 Minutes';
+      if (refresh_duration_int == '600000') time_1.selected = true;
+      tpbc_refresh_duration.appendChild(time_1);
+      var time_1 = document.createElement("option");
+      time_1.value = '900000';
+      time_1.innerHTML = '15 Minutes';
+      if (refresh_duration_int == '900000') time_1.selected = true;
+      tpbc_refresh_duration.appendChild(time_1);
+      var time_1 = document.createElement("option");
+      time_1.value = '1200000';
+      time_1.innerHTML = '20 Minutes';
+      if (refresh_duration_int == '1200000') time_1.selected = true;
+      tpbc_refresh_duration.appendChild(time_1);
+      var time_1 = document.createElement("option");
+      time_1.value = '1500000';
+      time_1.innerHTML = '25 Minutes';
+      if (refresh_duration_int == '1500000') time_1.selected = true;
+      tpbc_refresh_duration.appendChild(time_1);
+      var time_1 = document.createElement("option");
+      time_1.value = '1800000';
+      time_1.innerHTML = '30 Minutes';
+      if (refresh_duration_int == '1800000') time_1.selected = true;
+      tpbc_refresh_duration.appendChild(time_1);
+      var time_1 = document.createElement("option");
+      time_1.value = '2700000';
+      time_1.innerHTML = '45 Minutes';
+      if (refresh_duration_int == '2700000') time_1.selected = true;
+      tpbc_refresh_duration.appendChild(time_1);
+      var time_1 = document.createElement("option");
+      time_1.value = '3600000';
+      time_1.innerHTML = 'Hour';
+      if (refresh_duration_int == '3600000') time_1.selected = true;
+      tpbc_refresh_duration.appendChild(time_1);
+      var time_1 = document.createElement("option");
+      time_1.value = '7200000';
+      time_1.innerHTML = '2 Hours';
+      if (refresh_duration_int == '7200000') time_1.selected = true;
+      tpbc_refresh_duration.appendChild(time_1);
+      var time_1 = document.createElement("option");
+      time_1.value = '10800000';
+      time_1.innerHTML = '3 Hours';
+      if (refresh_duration_int == '10800000') time_1.selected = true;
+      tpbc_refresh_duration.appendChild(time_1);
+      var time_1 = document.createElement("option");
+      time_1.value = '14400000';
+      time_1.innerHTML = '4 Hours';
+      if (refresh_duration_int == '14400000') time_1.selected = true;
+      tpbc_refresh_duration.appendChild(time_1);
+      var time_1 = document.createElement("option");
+      time_1.value = '18000000';
+      time_1.innerHTML = '5 Hours';
+      if (refresh_duration_int == '18000000') time_1.selected = true;
+      tpbc_refresh_duration.appendChild(time_1);
+      var time_1 = document.createElement("option");
+      time_1.value = '21600000';
+      time_1.innerHTML = '6 Hours';
+      if (refresh_duration_int == '21600000') time_1.selected = true;
+      tpbc_refresh_duration.appendChild(time_1);
+      var time_1 = document.createElement("option");
+      time_1.value = '25200000';
+      time_1.innerHTML = '7 Hours';
+      if (refresh_duration_int == '25200000') time_1.selected = true;
+      tpbc_refresh_duration.appendChild(time_1);
+      var time_1 = document.createElement("option");
+      time_1.value = '28800000';
+      time_1.innerHTML = '8 Hours';
+      if (refresh_duration_int == '28800000') time_1.selected = true;
+      tpbc_refresh_duration.appendChild(time_1);
+      var time_1 = document.createElement("option");
+      time_1.value = '32400000';
+      time_1.innerHTML = '9 Hours';
+      if (refresh_duration_int == '32400000') time_1.selected = true;
+      tpbc_refresh_duration.appendChild(time_1);
+      var time_1 = document.createElement("option");
+      time_1.value = '36000000';
+      time_1.innerHTML = '10 Hours';
+      if (refresh_duration_int == '36000000') time_1.selected = true;
+      tpbc_refresh_duration.appendChild(time_1);
+      var time_1 = document.createElement("option");
+      time_1.value = '39600000';
+      time_1.innerHTML = '11 Hours';
+      if (refresh_duration_int == '39600000') time_1.selected = true;
+      tpbc_refresh_duration.appendChild(time_1);
+      var time_1 = document.createElement("option");
+      time_1.value = '43200000';
+      time_1.innerHTML = '12 Hours';
+      if (refresh_duration_int == '43200000') time_1.selected = true;
+      tpbc_refresh_duration.appendChild(time_1);
+      var time_1 = document.createElement("option");
+      time_1.value = '64800000';
+      time_1.innerHTML = '18 Hours';
+      if (refresh_duration_int == '64800000') time_1.selected = true;
+      tpbc_refresh_duration.appendChild(time_1);
+      var time_1 = document.createElement("option");
+      time_1.value = '86400000';
+      time_1.innerHTML = '24 Hours';
+      if (refresh_duration_int == '86400000') time_1.selected = true;
+      tpbc_refresh_duration.appendChild(time_1);
+      $("<br>").appendTo('#tbpc_formcontents');
+      $("#tpbc_lightbox").css({ 'background': '#000' });
+      break;
+  }
+  /* If we click anywhere on the lightbox then it closes and checks for things that have changed and alerts etc. */
+  $("#tpbc_lightbox").click(function () {
+    if ($(tpbc_remotetorrent_client).val() == '4' && $.trim($(client_4_url).val()) == '') {
+      alert('You have not entered your Transmission URL');
+      $('#transmission_url').focus();
+    } else {
+      $("#tpbc_lightbox").css({ 'background': '#000' });
+      $('#tpbc_holder').remove();
+      $('#tpbc_holder_form').remove();
+      $("#tpbc_lightbox").fadeOut('fast', function () {
+        $(this).remove();
+      });
+      if (SettingsChanged == true) {
+        alert('Something Changed! Page Will Now Refresh');
+        SettingsChanged = false;
+        location.reload();
+      }
+    }
+  });
+  /* Same as above, but against a different object. Check for things that may have changed and alerts or refreshes etc. */
+  $("#tpbc_holder").click(function () {
+    if ($(tpbc_remotetorrent_client).val() == '4' && $.trim($(client_4_url).val()) == '') {
+      alert('You have not entered your Transmission URL');
+      $('#transmission_url').focus();
+    } else {
+      $("#tpbc_lightbox").css({ 'background': '#000' });
+      $('#tpbc_holder').remove();
+      $("#tpbc_lightbox").fadeOut('fast', function () {
+        $("#tpbc_lightbox").remove();
+      });
+      if (SettingsChanged == true) {
+        alert('Something Changed! Page Will Now Refresh');
+        SettingsChanged = false;
+        location.reload();
+      }
+    }
+  });
+}
+/* Use this function to display the settings window */
+function ShowSettings() {
+  Lightbox('settings');
+}
 
 var sitedomain = document.domain;
+console.log(sitedomain);
 if (sitedomain.substr(0, sitedomain.substr(0, sitedomain.length).indexOf(".")) == 'thepiratebay') {
   /* Set all the variables that I will need and defaults if not used etc. */
   url = location.href;
@@ -136,7 +936,7 @@ if (sitedomain.substr(0, sitedomain.substr(0, sitedomain.length).indexOf(".")) =
     e.preventDefault();
     if (duckduckgo == true) {
       //if (https==true){
-      if (url.substring(0, 5) = "https") {
+      if (url.substring(0, 5) == "https") {
         var qval = $('.https_form').val(); $('.https_form').val('');
       } else {
         var qval = $('#inp > input').val(); $('#inp > input').val('');
@@ -150,7 +950,7 @@ if (sitedomain.substr(0, sitedomain.substr(0, sitedomain.length).indexOf(".")) =
     e.preventDefault();
     if (duckduckgo == true) {
       //if (https==true){
-      if (url.substring(0, 5) = "https") {
+      if (url.substring(0, 5) == "https") {
         var qval = $('.searchBox').val(); $('.searchBox').val('');
       } else {
         var qval = $('.inputbox').val(); $('.inputbox').val('');
@@ -191,802 +991,7 @@ if (sitedomain.substr(0, sitedomain.substr(0, sitedomain.length).indexOf(".")) =
   } else if (getCookie('lw') && single == false) {
     setCookie('lw', '', -9999);
   }
-  /* Convert milliseconds to real time HH:MM:SS */
-  function msToTime(s) {
-    var arrTime = new Array();
-    var ms = s % 1000; s = (s - ms) / 1000;
-    var secs = s % 60; s = (s - secs) / 60;
-    var mins = s % 60;
-    var hrs = (s - mins) / 60;
-    strHrs = "0" + hrs; strHrs = strHrs.substr(strHrs.length - 2);
-    strMins = "0" + mins; strMins = strMins.substr(strMins.length - 2);
-    strSecs = "0" + secs; strSecs = strSecs.substr(strSecs.length - 2);
-    if (hrs > 0) {
-      arrTime['TheTime'] = strHrs + ':' + strMins;
-      arrTime['TheTimeAsWords'] = hrs + " Hours and " + mins + " Minutes";
-    }
-    else if (mins > 0) {
-      arrTime['TheTime'] = strMins + ':' + strSecs;
-      arrTime['TheTimeAsWords'] = mins + " Minutes and " + secs + " Seconds";
-    }
-    else if (secs > 0) {
-      arrTime['TheTime'] = strSecs;
-      arrTime['TheTimeAsWords'] = secs + " Seconds";
-    }
-    return arrTime;
-  }
-  /* The page refresh function */
-  function TogglePageRefresh() {
-    if (!PageRefresher) {
-      setCookie(url, 'AutoRefresh', 999);
-      refresh_duration = GM_getValue("refresh_duration")
-      $("#refresh_button").attr('onmouseover', "this.style.background='url(//i.imgur.com/u4tV1h1.png) 0px 40px'");
-      $("#refresh_button").attr('onmouseout', "this.style.background='url(//i.imgur.com/u4tV1h1.png) 0px 0px'");
-      $("#refresh_button").attr('title', "Turn Off Auto Refresh");
-      var noti_bubble = document.createElement('div');
-      noti_bubble.id = "noti_bubble";
-      noti_bubble.style.cssText = 'z-index:9999; max-width:80px; position:absolute; padding:1px 2px 1px 2px; color:white; font-weight:bold; border-radius:30px; float:right; box-shadow:1px 1px 1px gray; left:' + $("#refresh_button").position().left + 'px;';
-      $('#tpbc_btn_container').append(noti_bubble);
-      /* Set the initial countdown time appearance */
-      var TimeDetails = msToTime(refresh_duration);
-      $('#noti_bubble').html(TimeDetails['TheTime']);
-      noti_bubble.title = TimeDetails['TheTimeAsWords'] + " Until Refresh";
-      if (refresh_duration <= 60000) {
-        noti_bubble.style.backgroundColor = "red";
-      } else if (refresh_duration <= 300000) {
-        noti_bubble.style.backgroundColor = "orange";
-      } else {
-        noti_bubble.style.backgroundColor = "green";
-      }
-      /* Now with the timer running, make sure we're keeping up appearances ;) */
-      PageRefresher = setInterval(function () {
-        refresh_duration = refresh_duration - 1000;
-        var TimeDetails = msToTime(refresh_duration);
-        $('#noti_bubble').html(TimeDetails['TheTime']);
-        noti_bubble.title = TimeDetails['TheTimeAsWords'] + " Until Refresh";
-        if (refresh_duration <= 60000) {
-          noti_bubble.style.backgroundColor = "red";
-        } else if (refresh_duration <= 300000) {
-          noti_bubble.style.backgroundColor = "orange";
-        } else {
-          noti_bubble.style.backgroundColor = "green";
-        }
-        if (refresh_duration <= 0) {
-          document.title = "Refreshing...";
-          location.reload();
-        }
-      }, 1000);
-    } else if (PageRefresher) {
-      /* Remove etc. when no timer running */
-      setCookie(url, 'AutoRefresh', -999);
-      clearInterval(PageRefresher);
-      $("#refresh_button").attr('onmouseover', "this.style.background='url(//i.imgur.com/u4tV1h1.png) 0px 0px'");
-      $("#refresh_button").attr('onmouseout', "this.style.background='url(//i.imgur.com/u4tV1h1.png) 0px 40px'");
-      $("#refresh_button").attr('title', "Turn On Auto Refresh");
-      $('#noti_bubble').remove();
-      PageRefresher = false;
-    }
-  }
-  /* This shows a black translucent background, exactly like a lightbox background */
-  function LightboxBG() {
-    $("body").append($('<div id="tpbc_lightbox" style="width:100%!important;height:100%!important;position:fixed;z-index:1000;top:0;left:0;background:#000 url(\'//i.imgur.com/ByMmVtd.gif\');opacity:0.75;background-repeat:no-repeat;background-attachment:fixed;background-position:center; "><img src="//i.imgur.com/NMFMQRZ.png" title="Close" style="position:fixed; top:5px;right:5px; cursor:pointer"></div>').hide().fadeIn('fast'));
-  }
-  /* Depending on the type, url and nobg. type can be www for websites, img for an image, code for text or settings for TPBC settings window. With www, you'll also need the url to be set and you can choose to use nobg or not, which is whether or not you want to show the black background */
-  function Lightbox(type, url, nobg) {
-    /* if nobg has nothing set, then show the background */
-    if (!nobg) LightboxBG();
-    switch (type) {
-      /* Show a website */
-      case 'www':
-        if (url) {
-          window.Escapable = true;
-          var scrWidth = $(window).width(); var scrHeight = $(window).height();
-          $('<iframe id="tpbc_holder" style="width:' + (scrWidth - 100) + 'px!important;height:' + (scrHeight - 100) + 'px!important;position:fixed;z-index:1002;top:50px;left:50px;background:#ffffff;display:none;" src="' + $.trim(url) + '" />').appendTo("body");
-          $("#tpbc_holder").load(function () {
-            $('#tpbc_holder').fadeIn('fast');
-            $("#tpbc_lightbox").css({ 'background': '#000' });
-          })
-        }
-        SettingsChanged = false;
-        break;
-      /*  Show an image */
-      case 'img':
-        if (url) {
-          window.Escapable = true;
-          $('<div id="tpbc_holder" style="cursor:pointer;width:100%!important;height:100%!important;position:fixed;z-index:1002;top:0;left:0;background:url(\'' + $.trim(url) + '\');background-repeat:no-repeat;background-attachment:fixed;background-position:center;"></div>').appendTo("body");
-        }
-        SettingsChanged = false;
-        break;
-      /* Show text */
-      case 'code':
-        if (url) {
-          window.Escapable = true;
-          var scrWidth = $(window).width(); var scrHeight = $(window).height();
-          $('<div id="tpbc_holder" style="width:' + (scrWidth - 100) + 'px!important;height:' + (scrHeight - 100) + 'px!important;position:fixed;z-index:1002;top:50px;left:50px;background:#ffffff;font-size:1.3em;overflow:auto;text-align:left;padding:5px;" >' + $.trim(url) + '</div>').appendTo("body");
-        }
-        SettingsChanged = false;
-        break;
-      /* Build and show TPBC settings window */
-      case 'settings':
-        SettingsChanged = false;
-        var scrWidth = $(window).width(); var scrHeight = $(window).height();
-        $('<div id="tpbc_holder_form" style="width:' + (((scrWidth / 2) / scrWidth) * 100) + '%!important;height:' + (scrHeight - 100) + 'px!important;max-height:' + (scrHeight - 100) + 'px!important;position:fixed;z-index:1002;top:50px;left:' + ((((scrWidth / 2) / 2) / scrWidth) * 100) + '%!important;background:#ffffff;-webkit-border-radius: 10px;border-radius:10px;-moz-border-radius:10px;border:10px solid #000;overflow:auto;color:#000000;">'
-          + '<h1 style="text-align:center;">The Pirate Bay Cleaner Settings</h1>'
-          + '<span id="tbpc_formcontents" style="padding:5px;width:95%!important;text-align:left;display:block;margin:auto;margin-bottom:5px!important;" ></span>'
-          + '</div>').appendTo("body");
-        $("<h2/>", { html: "Torrent Settings <label style=\"color:red\">All Settings Are Saved Instantly!</label>", style: "text-align:left;margin:5px 0px;font-size:1.1em;font-weight:normal;line-height:1.5em;" }).appendTo('#tbpc_formcontents');
-        var tpbc_torrentify = document.createElement('input');
-        tpbc_torrentify.type = 'checkbox';
-        tpbc_torrentify.checked = torrentify;
-        tpbc_torrentify.addEventListener('click',
-          function () {
-            SettingsChanged = true;
-            GM_setValue('torrentify', this.checked);
-          }, false);
-        document.getElementById('tbpc_formcontents').appendChild(tpbc_torrentify);
-        $("<label/>", { html: "Show Download Torrent Icon<br>" }).appendTo('#tbpc_formcontents');
-        var tpbc_imdb = document.createElement('input');
-        tpbc_imdb.type = 'checkbox';
-        tpbc_imdb.checked = imdb;
-        tpbc_imdb.addEventListener('click',
-          function () {
-            SettingsChanged = true;
-            GM_setValue('imdb', this.checked);
-          }, false);
-        document.getElementById('tbpc_formcontents').appendChild(tpbc_imdb);
-        $("<label/>", { html: "Show IMDB Icon <small>(Opens IMDB.com in new window)</small><br>" }).appendTo('#tbpc_formcontents');
-        var tpbc_info = document.createElement('input');
-        tpbc_info.type = 'checkbox';
-        tpbc_info.checked = info;
-        tpbc_info.addEventListener('click',
-          function () {
-            SettingsChanged = true;
-            GM_setValue('info', this.checked);
-          }, false);
-        document.getElementById('tbpc_formcontents').appendChild(tpbc_info);
-        $("<label/>", { html: "Show Info Icon<br>" }).appendTo('#tbpc_formcontents');
-        var tpbc_alternate = document.createElement('input');
-        tpbc_alternate.type = 'checkbox';
-        tpbc_alternate.checked = alternate;
-        tpbc_alternate.addEventListener('click',
-          function () {
-            SettingsChanged = true;
-            GM_setValue('alternate', this.checked);
-          }, false);
-        document.getElementById('tbpc_formcontents').appendChild(tpbc_alternate);
-        $("<label/>", { html: "Show Search For Alternate Torrent Icon <small>(Search other torrent sites for this torrent)</small><br>" }).appendTo('#tbpc_formcontents');
-        var tpbc_ebay = document.createElement('input');
-        tpbc_ebay.type = 'checkbox';
-        tpbc_ebay.checked = ebay;
-        tpbc_ebay.addEventListener('click',
-          function () {
-            SettingsChanged = true;
-            GM_setValue('ebay', this.checked);
-          }, false);
-        document.getElementById('tbpc_formcontents').appendChild(tpbc_ebay);
-        $("<label/>", { html: "Show Buy On eBay Icon<br>" }).appendTo('#tbpc_formcontents');
-        var tpbc_amazon = document.createElement('input');
-        tpbc_amazon.type = 'checkbox';
-        tpbc_amazon.checked = amazon;
-        tpbc_amazon.addEventListener('click',
-          function () {
-            SettingsChanged = true;
-            GM_setValue('amazon', this.checked);
-          }, false);
-        document.getElementById('tbpc_formcontents').appendChild(tpbc_amazon);
-        $("<label/>", { html: "Show Buy On Amazon Icon<br>" }).appendTo('#tbpc_formcontents');
-        var tpbc_color_code = document.createElement('input');
-        tpbc_color_code.type = 'checkbox';
-        tpbc_color_code.checked = color_code;
-        tpbc_color_code.addEventListener('click',
-          function () {
-            SettingsChanged = true;
-            GM_setValue('color_code', this.checked);
-          }, false);
-        document.getElementById('tbpc_formcontents').appendChild(tpbc_color_code);
-        $("<label/>", { html: "Color Code Torrents Based Time Added<br>" }).appendTo('#tbpc_formcontents');
-        $("<label/>", { html: "Y-Day:", style: "margin-left:25px;margin-right:10px;" }).appendTo('#tbpc_formcontents');
-        $("<input/>", { type: "text", id: "tpbc_color_code_yday_color", disabled: "disabled", style: "margin-left:26px;width:25px;padding:2px;text-align:center; font-family:Verdana,Arial,Helvetica,sans-serif;margin-bottom:2px;background-color:" + color_code_yday + ";" }).appendTo('#tbpc_formcontents');
-        var tpbc_color_code_yday = document.createElement('input');
-        tpbc_color_code_yday.type = 'text';
-        tpbc_color_code_yday.value = color_code_yday;
-        tpbc_color_code_yday.maxlength = '7';
-        tpbc_color_code_yday.style.cssText = "width:125px;padding:2px;text-align:center;font-family:Verdana,Arial,Helvetica,sans-serif;margin-bottom:2px;";
-        tpbc_color_code_yday.placeholder = "Example: #FF7F7F";
-        tpbc_color_code_yday.addEventListener('keyup',
-          function () {
-            SettingsChanged = true;
-            document.getElementById('tpbc_color_code_yday_color').style.backgroundColor = this.value;
-            GM_setValue('color_code_yday', this.value);
-          }, false);
-        document.getElementById('tbpc_formcontents').appendChild(tpbc_color_code_yday);
-        $("<br>").appendTo('#tbpc_formcontents');
-        $("<label/>", { html: "Today:", style: "margin-left:25px;margin-right:10px;" }).appendTo('#tbpc_formcontents');
-        $("<input/>", { type: "text", id: "tpbc_color_code_today_color", disabled: "disabled", style: "margin-left:26px;width:25px;padding:2px;text-align:center; font-family:Verdana,Arial,Helvetica,sans-serif;margin-bottom:2px;background-color:" + color_code_today + ";" }).appendTo('#tbpc_formcontents');
-        var tpbc_color_code_today = document.createElement('input');
-        tpbc_color_code_today.type = 'text';
-        tpbc_color_code_today.value = color_code_today;
-        tpbc_color_code_today.maxlength = '7';
-        tpbc_color_code_today.style.cssText = "width:125px;padding:2px;text-align:center;font-family:Verdana,Arial,Helvetica,sans-serif;margin-bottom:2px;";
-        tpbc_color_code_today.placeholder = "Example: #FFE77F";
-        tpbc_color_code_today.addEventListener('keyup',
-          function () {
-            SettingsChanged = true;
-            document.getElementById('tpbc_color_code_today_color').style.backgroundColor = this.value;
-            GM_setValue('color_code_today', this.value);
-          }, false);
-        document.getElementById('tbpc_formcontents').appendChild(tpbc_color_code_today);
-        $("<br>").appendTo('#tbpc_formcontents');
-        $("<label/>", { html: "xx Minutes:", style: "margin-left:25px;margin-right:10px;" }).appendTo('#tbpc_formcontents');
-        $("<input/>", { type: "text", id: "tpbc_color_code_minutes_color", disabled: "disabled", style: "width:25px;padding:2px;text-align:center; font-family:Verdana,Arial,Helvetica,sans-serif;margin-bottom:2px;background-color:" + color_code_minutes + ";" }).appendTo('#tbpc_formcontents');
-        var tpbc_color_code_minutes = document.createElement('input');
-        tpbc_color_code_minutes.type = 'text';
-        tpbc_color_code_minutes.value = color_code_minutes;
-        tpbc_color_code_minutes.maxlength = '7';
-        tpbc_color_code_minutes.style.cssText = "width:125px;padding:2px;text-align:center;font-family:Verdana,Arial,Helvetica,sans-serif;margin-bottom:2px;";
-        tpbc_color_code_minutes.placeholder = "Example: #7FFF8C";
-        tpbc_color_code_minutes.addEventListener('keyup',
-          function () {
-            SettingsChanged = true;
-            document.getElementById('tpbc_color_code_minutes_color').style.backgroundColor = this.value;
-            GM_setValue('color_code_minutes', this.value);
-          }, false);
-        document.getElementById('tbpc_formcontents').appendChild(tpbc_color_code_minutes);
-        $("<br>").appendTo('#tbpc_formcontents');
-        var tpbc_trust = document.createElement('input');
-        tpbc_trust.type = 'checkbox';
-        tpbc_trust.checked = trust;
-        tpbc_trust.addEventListener('click',
-          function () {
-            SettingsChanged = true;
-            GM_setValue('trust', this.checked);
-          }, false);
-        document.getElementById('tbpc_formcontents').appendChild(tpbc_trust);
-        $("<label/>", { html: "Remove Torrents That Are Not From Trusted Uploaders (<img src=\"/static/img/vip.gif\" title=\"VIP\" >&nbsp;<img src=\"/static/img/trusted.png\" title=\"Trusted\" >&nbsp;<img src=\"/static/img/helper.png\" title=\"Helper\" >&nbsp;<img src=\"/static/img/moderator.gif\" title=\"Moderator\" >&nbsp;<img src=\"/static/img/supermod.png\" title=\"Supermod\" >&nbsp;<img src=\"/static/img/admin.gif\" title=\"Admin\" >)<br>" }).appendTo('#tbpc_formcontents');
-        var tpbc_filter = document.createElement('input');
-        tpbc_filter.type = 'checkbox';
-        tpbc_filter.checked = filter;
-        tpbc_filter.addEventListener('click',
-          function () {
-            SettingsChanged = true;
-            GM_setValue('filter', this.checked);
-          }, false);
-        document.getElementById('tbpc_formcontents').appendChild(tpbc_filter);
-        $("<label/>", { html: "Remove Torrents Based On Keywords <small>(Not case sensitive, words are separated by a pipe | )</small><br>" }).appendTo('#tbpc_formcontents');
-        $("<label/>", { html: "Keywords:", style: "margin-left:25px;margin-right:10px;" }).appendTo('#tbpc_formcontents');
-        var tpbc_filter_text = document.createElement('input');
-        tpbc_filter_text.type = 'text';
-        tpbc_filter_text.value = filter_text;
-        tpbc_filter_text.style.cssText = "width:500px;padding:2px;";
-        tpbc_filter_text.placeholder = "Example: cam|ts|camrip|tsync|ts2dvd|telesync2dvd|720p-ts|telesync|";
-        tpbc_filter_text.addEventListener('keyup',
-          function () {
-            SettingsChanged = true;
-            GM_setValue('filter_text', this.value);
-          }, false);
-        document.getElementById('tbpc_formcontents').appendChild(tpbc_filter_text);
-        $("<br>").appendTo('#tbpc_formcontents');
 
-        var tpbc_sizecontrol = document.createElement('input');
-        tpbc_sizecontrol.type = 'checkbox';
-        tpbc_sizecontrol.checked = sizecontrol;
-        tpbc_sizecontrol.id = 'tpbc_sizecontrol';
-        tpbc_sizecontrol.addEventListener('click',
-          function () {
-            SettingsChanged = true;
-            GM_setValue('sizecontrol', this.checked);
-          }, false);
-        document.getElementById('tbpc_formcontents').appendChild(tpbc_sizecontrol);
-        $("<label/>", { html: "Remove Too Small Torrents<br>" }).appendTo('#tbpc_formcontents');
-        $("<label/>", { html: "Size:", style: "margin-left:25px;margin-right:10px;" }).appendTo('#tbpc_formcontents');
-        var tpbc_sizecontrol_size = document.createElement('input');
-        tpbc_sizecontrol_size.type = 'number';
-        tpbc_sizecontrol_size.id = 'tpbc_sizecontrol_size';
-        tpbc_sizecontrol_size.value = sizecontrol_size;
-        tpbc_sizecontrol_size.style.cssText = "width:100px;padding:2px;";
-        tpbc_sizecontrol_size.placeholder = "6";
-        tpbc_sizecontrol_size.addEventListener('keyup',
-          function () {
-            SettingsChanged = true;
-            GM_setValue('sizecontrol_size', this.value);
-          }, false);
-        document.getElementById('tbpc_formcontents').appendChild(tpbc_sizecontrol_size);
-        $("<label/>", { html: "Type:", style: "margin-left:10px;margin-right:10px;" }).appendTo('#tbpc_formcontents');
-        var tpbc_sizecontrol_type = document.createElement('select');
-        tpbc_sizecontrol_type.id = 'tpbc_sizecontrol_type';
-        tpbc_sizecontrol_type.style.cssText = "width:100px;padding:2px;text-align:center; font-family:Verdana,Arial,Helvetica,sans-serif;margin-bottom:2px;";
-        tpbc_sizecontrol_type.addEventListener('change', function () {
-          SettingsChanged = true;
-          GM_setValue('sizecontrol_type', this.value);
-        }, false);
-        document.getElementById('tbpc_formcontents').appendChild(tpbc_sizecontrol_type);
-        var type_3 = document.createElement("option");
-        type_3.value = 'KiB';
-        type_3.innerHTML = 'KiB';
-        if (sizecontrol_type == 'KiB') type_3.selected = true;
-        tpbc_sizecontrol_type.appendChild(type_3);
-        var type_2 = document.createElement("option");
-        type_2.value = 'MiB';
-        type_2.innerHTML = 'MiB';
-        if (sizecontrol_type == 'MiB') type_2.selected = true;
-        tpbc_sizecontrol_type.appendChild(type_2);
-        var type_1 = document.createElement("option");
-        type_1.value = 'GiB';
-        type_1.innerHTML = 'GiB';
-        if (sizecontrol_type == 'GiB') type_1.selected = true;
-        tpbc_sizecontrol_type.appendChild(type_1);
-        $("<br>").appendTo('#tbpc_formcontents');
-        var tpbc_pornremove = document.createElement('input');
-        tpbc_pornremove.type = 'checkbox';
-        tpbc_pornremove.checked = pornremove;
-        tpbc_pornremove.addEventListener('click',
-          function () {
-            SettingsChanged = true;
-            GM_setValue('pornremove', this.checked);
-            if (this.checked == true) {
-              $('#tpbc_pornfilter').prop('disabled', true);
-              $('#tpbc_pornfilter_text').prop('disabled', true);
-            } else {
-              $('#tpbc_pornfilter').prop('disabled', false);
-              $('#tpbc_pornfilter_text').prop('disabled', false);
-            }
-          }, false);
-        document.getElementById('tbpc_formcontents').appendChild(tpbc_pornremove);
-        $("<label/>", { html: "Remove All <b style=\"color:red\">Porn</b><br>" }).appendTo('#tbpc_formcontents');
-        var tpbc_pornfilter = document.createElement('input');
-        tpbc_pornfilter.type = 'checkbox';
-        tpbc_pornfilter.checked = pornfilter;
-        tpbc_pornfilter.id = 'tpbc_pornfilter';
-        if (pornremove == true) {
-          tpbc_pornfilter.disabled = true;
-        } else {
-          tpbc_pornfilter.disabled = false;
-        }
-        tpbc_pornfilter.addEventListener('click',
-          function () {
-            SettingsChanged = true;
-            GM_setValue('pornfilter', this.checked);
-          }, false);
-        document.getElementById('tbpc_formcontents').appendChild(tpbc_pornfilter);
-        $("<label/>", { html: "Remove <b style=\"color:red\">Porn</b> Based On Keywords <small>(Not case sensitive, words are separated by a pipe | )</small><br>" }).appendTo('#tbpc_formcontents');
-        $("<label/>", { html: "Keywords:", style: "margin-left:25px;margin-right:10px;" }).appendTo('#tbpc_formcontents');
-        var tpbc_pornfilter_text = document.createElement('input');
-        tpbc_pornfilter_text.type = 'text';
-        tpbc_pornfilter_text.id = 'tpbc_pornfilter_text';
-        if (pornremove == true) {
-          tpbc_pornfilter_text.disabled = true;
-        } else {
-          tpbc_pornfilter_text.disabled = false;
-        }
-        tpbc_pornfilter_text.value = pornfilter_text;
-        tpbc_pornfilter_text.style.cssText = "width:500px;padding:2px;";
-        tpbc_pornfilter_text.placeholder = "Example: xxx|cam|pussy|vagina|ts|milf|porn|camrip|vhs";
-        tpbc_pornfilter_text.addEventListener('keyup',
-          function () {
-            SettingsChanged = true;
-            GM_setValue('pornfilter_text', this.value);
-          }, false);
-        document.getElementById('tbpc_formcontents').appendChild(tpbc_pornfilter_text);
-        $("<br>").appendTo('#tbpc_formcontents');
-        var tpbc_magnet = document.createElement('input');
-        tpbc_magnet.type = 'checkbox';
-        tpbc_magnet.checked = magnet;
-        tpbc_magnet.addEventListener('click',
-          function () {
-            SettingsChanged = true;
-            GM_setValue('magnet', this.checked);
-          }, false);
-        document.getElementById('tbpc_formcontents').appendChild(tpbc_magnet);
-        $("<label/>", { html: "Remove Magnet Links<br>" }).appendTo('#tbpc_formcontents');
-        var tpbc_anonymous = document.createElement('input');
-        tpbc_anonymous.type = 'checkbox';
-        tpbc_anonymous.checked = anonymous;
-        tpbc_anonymous.addEventListener('click',
-          function () {
-            SettingsChanged = true;
-            GM_setValue('anonymous', this.checked);
-          }, false);
-        document.getElementById('tbpc_formcontents').appendChild(tpbc_anonymous);
-        $("<label/>", { html: "Remove \"Anonymous Download\" Links<br>" }).appendTo('#tbpc_formcontents');
-        var tpbc_images = document.createElement('input');
-        tpbc_images.type = 'checkbox';
-        tpbc_images.checked = images;
-        tpbc_images.addEventListener('click',
-          function () {
-            SettingsChanged = true;
-            GM_setValue('images', this.checked);
-          }, false);
-        document.getElementById('tbpc_formcontents').appendChild(tpbc_images);
-        $("<label/>", { html: "Click Cover Image Icon To Open Cover Image<br>" }).appendTo('#tbpc_formcontents');
-        var tpbc_comments = document.createElement('input');
-        tpbc_comments.type = 'checkbox';
-        tpbc_comments.checked = comments;
-        tpbc_comments.addEventListener('click',
-          function () {
-            SettingsChanged = true;
-            GM_setValue('comments', this.checked);
-          }, false);
-        document.getElementById('tbpc_formcontents').appendChild(tpbc_comments);
-        $("<label/>", { html: "Click Comments Icon To Open Comments<br>" }).appendTo('#tbpc_formcontents');
-        var tpbc_loadallcomments = document.createElement('input');
-        tpbc_loadallcomments.type = 'checkbox';
-        tpbc_loadallcomments.checked = loadallcomments;
-        tpbc_loadallcomments.addEventListener('click',
-          function () {
-            SettingsChanged = true;
-            GM_setValue('loadallcomments', this.checked);
-          }, false);
-        document.getElementById('tbpc_formcontents').appendChild(tpbc_loadallcomments);
-        $("<label/>", { html: "All comments will be shown on each torrent details page.<br>" }).appendTo('#tbpc_formcontents');
-        var tpbc_save_history = document.createElement('input');
-        tpbc_save_history.type = 'checkbox';
-        tpbc_save_history.checked = save_history;
-        tpbc_save_history.addEventListener('click',
-          function () {
-            SettingsChanged = true;
-            GM_setValue('save_history', this.checked);
-            if (this.checked == true) {
-              $('#delete_history').fadeIn('slow', function () { });
-            } else {
-              $('#delete_history').fadeOut('slow', function () { });
-            }
-          }, false);
-        document.getElementById('tbpc_formcontents').appendChild(tpbc_save_history);
-        $("<label/>", { html: "Remember Downloaded <small>(This unchecked will NOT clear any history. MAY increase site loading time.)</small><br>" }).appendTo('#tbpc_formcontents');
-        var tpbc_delete_history = document.createElement('input');
-        tpbc_delete_history.type = 'button';
-        tpbc_delete_history.value = 'Clear History';
-        tpbc_delete_history.id = 'delete_history';
-        if (save_history == true) {
-          tpbc_delete_history.style.cssText = "margin-left:25px;width:125px;padding:2px;";
-        } else {
-          tpbc_delete_history.style.cssText = "margin-left:25px;width:125px;padding:2px;display:none;";
-        }
-        tpbc_delete_history.addEventListener('click',
-          function () {
-            SettingsChanged = true;
-            GM_setValue("torrent_history", '');
-            alert('History Cleared');
-          }, false);
-        document.getElementById('tbpc_formcontents').appendChild(tpbc_delete_history);
-        $("<h2/>", { html: "Other Settings <label style=\"color:red\">All Settings Are Saved Instantly!</label>", style: "text-align:left;margin:5px 0px;font-size:1.1em;font-weight:normal;line-height:1.5em;" }).appendTo('#tbpc_formcontents');
-        var tpbc_remotetorrent = document.createElement('input');
-        tpbc_remotetorrent.type = 'checkbox';
-        tpbc_remotetorrent.checked = remotetorrent;
-        tpbc_remotetorrent.addEventListener('click',
-          function () {
-            SettingsChanged = true;
-            GM_setValue('remotetorrent', this.checked);
-          }, false);
-        document.getElementById('tbpc_formcontents').appendChild(tpbc_remotetorrent);
-        $("<label/>", { html: "Show Button To Launch Remote Web Client Service<br>" }).appendTo('#tbpc_formcontents');
-        $("<label/>", { html: "Client:", style: "margin-left:25px;margin-right:10px;" }).appendTo('#tbpc_formcontents');
-        var tpbc_remotetorrent_client = document.createElement('select');
-        tpbc_remotetorrent_client.id = 'tpbc_remotetorrent_client';
-        tpbc_remotetorrent_client.style.cssText = "width:125px;padding:2px;text-align:center; font-family:Verdana,Arial,Helvetica,sans-serif;margin-bottom:2px;";
-        tpbc_remotetorrent_client.addEventListener('change', function () {
-          SettingsChanged = true;
-          GM_setValue('remotetorrent_client', this.value);
-          if (this.value == '4') {
-            $('#transmission_url').fadeIn('slow', function () { });
-          } else {
-            $('#transmission_url').fadeOut('slow', function () { });
-          }
-        }, false);
-        document.getElementById('tbpc_formcontents').appendChild(tpbc_remotetorrent_client);
-        var client_1 = document.createElement("option");
-        client_1.value = '1';
-        client_1.innerHTML = 'µTorrent';
-        if (remotetorrent_client == '1') client_1.selected = true;
-        tpbc_remotetorrent_client.appendChild(client_1);
-        var client_2 = document.createElement("option");
-        client_2.value = '2';
-        client_2.innerHTML = 'Vuze';
-        if (remotetorrent_client == '2') client_2.selected = true;
-        tpbc_remotetorrent_client.appendChild(client_2);
-        var client_3 = document.createElement("option");
-        client_3.value = '3';
-        client_3.innerHTML = 'BitTorrent';
-        if (remotetorrent_client == '3') client_3.selected = true;
-        tpbc_remotetorrent_client.appendChild(client_3);
-        var client_4 = document.createElement("option");
-        client_4.value = '4';
-        client_4.innerHTML = 'Transmission';
-        if (remotetorrent_client == '4') client_4.selected = true;
-        tpbc_remotetorrent_client.appendChild(client_4);
-        var client_4_url = document.createElement("input");
-        client_4_url.type = 'text';
-        client_4_url.id = 'transmission_url';
-        client_4_url.value = transmission_url;
-        if (remotetorrent_client == '4') {
-          client_4_url.style.cssText = "width:500px;padding:2px;";
-        } else {
-          client_4_url.style.cssText = "width:500px;padding:2px;display:none;";
-        }
-        client_4_url.placeholder = "Example: http://192.168.178.100:9090";
-        client_4_url.addEventListener('keyup',
-          function () {
-            SettingsChanged = true;
-            GM_setValue('transmission_url', $.trim(this.value));
-          }, false);
-        document.getElementById('tbpc_formcontents').appendChild(client_4_url);
-        $("<br>").appendTo('#tbpc_formcontents');
-        var remotetorrent_client_mode_lightbox = document.createElement('input');
-        remotetorrent_client_mode_lightbox.style.cssText = "margin-left:25px;margin-right:10px;";
-        remotetorrent_client_mode_lightbox.name = 'radio2';
-        remotetorrent_client_mode_lightbox.type = 'radio';
-        if (remotetorrent_client_mode == 'lightbox') remotetorrent_client_mode_lightbox.checked = true;
-        remotetorrent_client_mode_lightbox.addEventListener('click',
-          function () {
-            SettingsChanged = true;
-            GM_setValue('remotetorrent_client_mode', 'lightbox');
-          }, false);
-        document.getElementById('tbpc_formcontents').appendChild(remotetorrent_client_mode_lightbox);
-        $("<label/>", { html: "Open Client In Lightbox" }).appendTo('#tbpc_formcontents');
-        var remotetorrent_client_mode_window = document.createElement('input');
-        remotetorrent_client_mode_window.style.cssText = "margin-left:33px;margin-right:10px;";
-        remotetorrent_client_mode_window.name = 'radio2';
-        remotetorrent_client_mode_window.type = 'radio';
-        if (remotetorrent_client_mode == 'window') remotetorrent_client_mode_window.checked = true;
-        remotetorrent_client_mode_window.addEventListener('click',
-          function () {
-            SettingsChanged = true;
-            GM_setValue('remotetorrent_client_mode', 'window');
-          }, false);
-        document.getElementById('tbpc_formcontents').appendChild(remotetorrent_client_mode_window);
-        $("<label/>", { html: "Open Client In New Window" }).appendTo('#tbpc_formcontents');
-        $("<br>").appendTo('#tbpc_formcontents');
-        var tpbc_https = document.createElement('input');
-        tpbc_https.type = 'checkbox';
-        tpbc_https.checked = https;
-        tpbc_https.addEventListener('click',
-          function () {
-            SettingsChanged = true;
-            GM_setValue('https', this.checked);
-          }, false);
-        document.getElementById('tbpc_formcontents').appendChild(tpbc_https);
-        $("<label/>", { html: "Always Use HTTPS<br>" }).appendTo('#tbpc_formcontents');
-        var tpbc_theme = document.createElement('input');
-        tpbc_theme.type = 'checkbox';
-        tpbc_theme.checked = theme;
-        tpbc_theme.addEventListener('click',
-          function () {
-            SettingsChanged = true;
-            GM_setValue('theme', this.checked);
-          }, false);
-        document.getElementById('tbpc_formcontents').appendChild(tpbc_theme);
-        $("<label/>", { html: "Use Dark Theme<br>" }).appendTo('#tbpc_formcontents');
-        var tpbc_duckduckgo = document.createElement('input');
-        tpbc_duckduckgo.type = 'checkbox';
-        tpbc_duckduckgo.checked = duckduckgo;
-        tpbc_duckduckgo.addEventListener('click',
-          function () {
-            SettingsChanged = true;
-            GM_setValue('duckduckgo', this.checked);
-          }, false);
-        document.getElementById('tbpc_formcontents').appendChild(tpbc_duckduckgo);
-        $("<label/>", { html: "Use DuckDuckGo As Search Replacement<br>" }).appendTo('#tbpc_formcontents');
-        var tpbc_stretch = document.createElement('input');
-        tpbc_stretch.type = 'checkbox';
-        tpbc_stretch.checked = stretch;
-        tpbc_stretch.addEventListener('click',
-          function () {
-            SettingsChanged = true;
-            GM_setValue('stretch', this.checked);
-          }, false);
-        document.getElementById('tbpc_formcontents').appendChild(tpbc_stretch);
-        $("<label/>", { html: "Stretch To Fit Width<br>" }).appendTo('#tbpc_formcontents');
-        var tpbc_ads = document.createElement('input');
-        tpbc_ads.type = 'checkbox';
-        tpbc_ads.checked = ads;
-        tpbc_ads.addEventListener('click',
-          function () {
-            SettingsChanged = true;
-            GM_setValue('ads', this.checked);
-          }, false);
-        document.getElementById('tbpc_formcontents').appendChild(tpbc_ads);
-        $("<label/>", { html: "Remove Adverts<br>" }).appendTo('#tbpc_formcontents');
-        var tpbc_single = document.createElement('input');
-        tpbc_single.type = 'checkbox';
-        tpbc_single.checked = single;
-        tpbc_single.addEventListener('click',
-          function () {
-            SettingsChanged = true;
-            GM_setValue('single', this.checked);
-            if (this.checked == true) setCookie('lw', 's', 999); else setCookie('lw', 'd', 999);
-          }, false);
-        document.getElementById('tbpc_formcontents').appendChild(tpbc_single);
-        $("<label/>", { html: "Use Single Line Instead Of Double Line<br>" }).appendTo('#tbpc_formcontents');
-        var tpbc_linkify_all = document.createElement('input');
-        tpbc_linkify_all.type = 'checkbox';
-        tpbc_linkify_all.checked = linkify_all;
-        tpbc_linkify_all.addEventListener('click',
-          function () {
-            SettingsChanged = true;
-            GM_setValue('linkify_all', this.checked);
-          }, false);
-        document.getElementById('tbpc_formcontents').appendChild(tpbc_linkify_all);
-        $("<label/>", { html: "Try To Lightbox External Links <small>(Will not work with sites that block being embedded)</small><br>" }).appendTo('#tbpc_formcontents');
-        var tpbc_faves = document.createElement('input');
-        tpbc_faves.type = 'checkbox';
-        tpbc_faves.checked = save_faves;
-        tpbc_faves.addEventListener('click',
-          function () {
-            SettingsChanged = true;
-            GM_setValue('save_faves', this.checked);
-          }, false);
-        document.getElementById('tbpc_formcontents').appendChild(tpbc_faves);
-        $("<label/>", { html: "Allow Saving of Favorite Users<br>" }).appendTo('#tbpc_formcontents');
-        var tpbc_refresh = document.createElement('input');
-        tpbc_refresh.type = 'checkbox';
-        tpbc_refresh.checked = refresh;
-        tpbc_refresh.addEventListener('click',
-          function () {
-            SettingsChanged = true;
-            GM_setValue('refresh', this.checked);
-          }, false);
-        document.getElementById('tbpc_formcontents').appendChild(tpbc_refresh);
-        $("<label/>", { html: "Enable Option to Refresh Current Page Every " }).appendTo('#tbpc_formcontents');
-        var tpbc_refresh_duration = document.createElement('select');
-        tpbc_refresh_duration.id = 'tpbc_remotetorrent_client';
-        tpbc_refresh_duration.style.cssText = "width:125px;padding:2px;text-align:center; font-family:Verdana,Arial,Helvetica,sans-serif;margin-bottom:2px;";
-        tpbc_refresh_duration.addEventListener('change', function () {
-          SettingsChanged = true;
-          GM_setValue('refresh_duration', this.value);
-        }, false);
-        document.getElementById('tbpc_formcontents').appendChild(tpbc_refresh_duration);
-        var time_1 = document.createElement("option");
-        time_1.value = '60000';
-        time_1.innerHTML = 'Minute';
-        if (refresh_duration_int == '60000') time_1.selected = true;
-        tpbc_refresh_duration.appendChild(time_1);
-        var time_1 = document.createElement("option");
-        time_1.value = '300000';
-        time_1.innerHTML = '5 Minutes';
-        if (refresh_duration_int == '300000') time_1.selected = true;
-        tpbc_refresh_duration.appendChild(time_1);
-        var time_1 = document.createElement("option");
-        time_1.value = '600000';
-        time_1.innerHTML = '10 Minutes';
-        if (refresh_duration_int == '600000') time_1.selected = true;
-        tpbc_refresh_duration.appendChild(time_1);
-        var time_1 = document.createElement("option");
-        time_1.value = '900000';
-        time_1.innerHTML = '15 Minutes';
-        if (refresh_duration_int == '900000') time_1.selected = true;
-        tpbc_refresh_duration.appendChild(time_1);
-        var time_1 = document.createElement("option");
-        time_1.value = '1200000';
-        time_1.innerHTML = '20 Minutes';
-        if (refresh_duration_int == '1200000') time_1.selected = true;
-        tpbc_refresh_duration.appendChild(time_1);
-        var time_1 = document.createElement("option");
-        time_1.value = '1500000';
-        time_1.innerHTML = '25 Minutes';
-        if (refresh_duration_int == '1500000') time_1.selected = true;
-        tpbc_refresh_duration.appendChild(time_1);
-        var time_1 = document.createElement("option");
-        time_1.value = '1800000';
-        time_1.innerHTML = '30 Minutes';
-        if (refresh_duration_int == '1800000') time_1.selected = true;
-        tpbc_refresh_duration.appendChild(time_1);
-        var time_1 = document.createElement("option");
-        time_1.value = '2700000';
-        time_1.innerHTML = '45 Minutes';
-        if (refresh_duration_int == '2700000') time_1.selected = true;
-        tpbc_refresh_duration.appendChild(time_1);
-        var time_1 = document.createElement("option");
-        time_1.value = '3600000';
-        time_1.innerHTML = 'Hour';
-        if (refresh_duration_int == '3600000') time_1.selected = true;
-        tpbc_refresh_duration.appendChild(time_1);
-        var time_1 = document.createElement("option");
-        time_1.value = '7200000';
-        time_1.innerHTML = '2 Hours';
-        if (refresh_duration_int == '7200000') time_1.selected = true;
-        tpbc_refresh_duration.appendChild(time_1);
-        var time_1 = document.createElement("option");
-        time_1.value = '10800000';
-        time_1.innerHTML = '3 Hours';
-        if (refresh_duration_int == '10800000') time_1.selected = true;
-        tpbc_refresh_duration.appendChild(time_1);
-        var time_1 = document.createElement("option");
-        time_1.value = '14400000';
-        time_1.innerHTML = '4 Hours';
-        if (refresh_duration_int == '14400000') time_1.selected = true;
-        tpbc_refresh_duration.appendChild(time_1);
-        var time_1 = document.createElement("option");
-        time_1.value = '18000000';
-        time_1.innerHTML = '5 Hours';
-        if (refresh_duration_int == '18000000') time_1.selected = true;
-        tpbc_refresh_duration.appendChild(time_1);
-        var time_1 = document.createElement("option");
-        time_1.value = '21600000';
-        time_1.innerHTML = '6 Hours';
-        if (refresh_duration_int == '21600000') time_1.selected = true;
-        tpbc_refresh_duration.appendChild(time_1);
-        var time_1 = document.createElement("option");
-        time_1.value = '25200000';
-        time_1.innerHTML = '7 Hours';
-        if (refresh_duration_int == '25200000') time_1.selected = true;
-        tpbc_refresh_duration.appendChild(time_1);
-        var time_1 = document.createElement("option");
-        time_1.value = '28800000';
-        time_1.innerHTML = '8 Hours';
-        if (refresh_duration_int == '28800000') time_1.selected = true;
-        tpbc_refresh_duration.appendChild(time_1);
-        var time_1 = document.createElement("option");
-        time_1.value = '32400000';
-        time_1.innerHTML = '9 Hours';
-        if (refresh_duration_int == '32400000') time_1.selected = true;
-        tpbc_refresh_duration.appendChild(time_1);
-        var time_1 = document.createElement("option");
-        time_1.value = '36000000';
-        time_1.innerHTML = '10 Hours';
-        if (refresh_duration_int == '36000000') time_1.selected = true;
-        tpbc_refresh_duration.appendChild(time_1);
-        var time_1 = document.createElement("option");
-        time_1.value = '39600000';
-        time_1.innerHTML = '11 Hours';
-        if (refresh_duration_int == '39600000') time_1.selected = true;
-        tpbc_refresh_duration.appendChild(time_1);
-        var time_1 = document.createElement("option");
-        time_1.value = '43200000';
-        time_1.innerHTML = '12 Hours';
-        if (refresh_duration_int == '43200000') time_1.selected = true;
-        tpbc_refresh_duration.appendChild(time_1);
-        var time_1 = document.createElement("option");
-        time_1.value = '64800000';
-        time_1.innerHTML = '18 Hours';
-        if (refresh_duration_int == '64800000') time_1.selected = true;
-        tpbc_refresh_duration.appendChild(time_1);
-        var time_1 = document.createElement("option");
-        time_1.value = '86400000';
-        time_1.innerHTML = '24 Hours';
-        if (refresh_duration_int == '86400000') time_1.selected = true;
-        tpbc_refresh_duration.appendChild(time_1);
-        $("<br>").appendTo('#tbpc_formcontents');
-        $("#tpbc_lightbox").css({ 'background': '#000' });
-        break;
-    }
-    /* If we click anywhere on the lightbox then it closes and checks for things that have changed and alerts etc. */
-    $("#tpbc_lightbox").click(function () {
-      if ($(tpbc_remotetorrent_client).val() == '4' && $.trim($(client_4_url).val()) == '') {
-        alert('You have not entered your Transmission URL');
-        $('#transmission_url').focus();
-      } else {
-        $("#tpbc_lightbox").css({ 'background': '#000' });
-        $('#tpbc_holder').remove();
-        $('#tpbc_holder_form').remove();
-        $("#tpbc_lightbox").fadeOut('fast', function () {
-          $(this).remove();
-        });
-        if (SettingsChanged == true) {
-          alert('Something Changed! Page Will Now Refresh');
-          SettingsChanged = false;
-          location.reload();
-        }
-      }
-    });
-    /* Same as above, but against a different object. Check for things that may have changed and alerts or refreshes etc. */
-    $("#tpbc_holder").click(function () {
-      if ($(tpbc_remotetorrent_client).val() == '4' && $.trim($(client_4_url).val()) == '') {
-        alert('You have not entered your Transmission URL');
-        $('#transmission_url').focus();
-      } else {
-        $("#tpbc_lightbox").css({ 'background': '#000' });
-        $('#tpbc_holder').remove();
-        $("#tpbc_lightbox").fadeOut('fast', function () {
-          $("#tpbc_lightbox").remove();
-        });
-        if (SettingsChanged == true) {
-          alert('Something Changed! Page Will Now Refresh');
-          SettingsChanged = false;
-          location.reload();
-        }
-      }
-    });
-  }
   /* Check for Escape Key, used for some windows */
   $('body').keyup(function (e) {
     if (e.which == 27 && window.Escapable == true) {
@@ -999,10 +1004,7 @@ if (sitedomain.substr(0, sitedomain.substr(0, sitedomain.length).indexOf(".")) =
       window.Escapable = false;
     }
   });
-  /* Use this function to display the settings window */
-  function ShowSettings() {
-    Lightbox('settings');
-  }
+
   /* Some basic checking, if you entered a transmission url for custom torrent client */
   if (remotetorrent_client == '4' && transmission_url == '') {
     Lightbox('settings');
@@ -1117,7 +1119,7 @@ if (sitedomain.substr(0, sitedomain.substr(0, sitedomain.length).indexOf(".")) =
     $(refresh_button).attr('onmouseover', "this.style.background='url(//i.imgur.com/u4tV1h1.png) 0px 0px'");
     $(refresh_button).attr('onmouseout', "this.style.background='url(//i.imgur.com/u4tV1h1.png) 0px 40px'");
     $("#refresh_button").attr('title', "Turn On Auto Refresh");
-    refresh_button.addEventListener('click', function () { TogglePageRefresh() }, false);
+    refresh_button.addEventListener('click', function () { TogglePageRefresh();}, false);
     $('#tpbc_btn_container').append(refresh_button);
   }
   /* If choosing to save favourites and are on a user page, then add the star */
@@ -1209,9 +1211,9 @@ if (sitedomain.substr(0, sitedomain.substr(0, sitedomain.length).indexOf(".")) =
       $.ajax({
         url: torrentURL,
         success: function (data) {
-          var doc = document.createElement("html")
+          var doc = document.createElement("html");
           doc.innerHTML = data;
-          var picture = doc.getElementsByTagName("img")[2].src
+          var picture = doc.getElementsByTagName("img")[2].src;
           Lightbox('img', picture, 'nobg');
         }
       });
@@ -1264,7 +1266,7 @@ if (sitedomain.substr(0, sitedomain.substr(0, sitedomain.length).indexOf(".")) =
             } else if (torrentHTML.match(/\d+&nbsp;mins&nbsp;ago|\d+&nbsp;min&nbsp;ago/g)) {
               $(this).css({ 'background-color': color_code_minutes });
             } else {
-              if (theme == false) $(this).css({ 'background-color': '#F6F1EE' }); else $(this).css({ 'background-color': '#000000' })
+              if (theme == false) $(this).css({ 'background-color': '#F6F1EE' }); else $(this).css({ 'background-color': '#000000' });
             }
           }
         );
@@ -1319,7 +1321,7 @@ if (sitedomain.substr(0, sitedomain.substr(0, sitedomain.length).indexOf(".")) =
             $.ajax({
               url: torrentURL,
               success: function (data) {
-                var doc = document.createElement("html")
+                var doc = document.createElement("html");
                 doc.innerHTML = data;
                 var tor_info = $(doc).find('.nfo').html();
                 Lightbox('code', tor_info, 'nobg');
@@ -1378,7 +1380,7 @@ if (sitedomain.substr(0, sitedomain.substr(0, sitedomain.length).indexOf(".")) =
               GM_setValue("torrent_history", torrent_history);
               var beendownloaded_img = document.createElement('img');
               beendownloaded_img.src = '//i.imgur.com/E5zH2QV.png';
-              beendownloaded_img.title = 'Downloaded on ' + ordinal(dateNow().substr(8, 2)) + ' ' + monthName(dateNow().substr(5, 2)) + ', ' + dateNow().substr(0, 4)
+              beendownloaded_img.title = 'Downloaded on ' + ordinal(dateNow().substr(8, 2)) + ' ' + monthName(dateNow().substr(5, 2)) + ', ' + dateNow().substr(0, 4);
               beendownloaded_img.style.cssText = 'height:' + ($(this).parent().parent().height() - 7) + 'px;float:right';
               if (single == false) $(this).parent().children('div:first').before(beendownloaded_img);
               else $(this).children('td:nth-child(2)').append(beendownloaded_img);
@@ -1426,7 +1428,7 @@ if (sitedomain.substr(0, sitedomain.substr(0, sitedomain.length).indexOf(".")) =
             var download_date = torrent_history_array[i].substr((torrentID.length + 1), (torrent_history_array[i].length) - (torrentID.length + 2));
             var beendownloaded_img = document.createElement('img');
             beendownloaded_img.src = '//i.imgur.com/E5zH2QV.png';
-            beendownloaded_img.title = 'Downloaded on ' + ordinal(download_date.substr(8, 2)) + ' ' + monthName(download_date.substr(5, 2)) + ', ' + download_date.substr(0, 4)
+            beendownloaded_img.title = 'Downloaded on ' + ordinal(download_date.substr(8, 2)) + ' ' + monthName(download_date.substr(5, 2)) + ', ' + download_date.substr(0, 4);
             beendownloaded_img.style.cssText = 'height:' + ($(this).height() - 7) + 'px;float:right';
             if (single == false) $($(this).children('td:nth-child(2)').children('div:first')).before(beendownloaded_img);
             else $(this).children('td:nth-child(2)').append(beendownloaded_img);
@@ -1502,7 +1504,7 @@ if (sitedomain.substr(0, sitedomain.substr(0, sitedomain.length).indexOf(".")) =
       $.ajax({
         url: '/ajax_details_comments.php?id=' + torrentID,
         success: function (data) {
-          $('#comments').replaceWith(data)
+          $('#comments').replaceWith(data);
           $('.comment').css('background-color', '#fff');
           $('.byline').css('color', '#bb967a');
         },

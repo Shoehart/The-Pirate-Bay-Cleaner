@@ -1,13 +1,14 @@
 // ==UserScript==
 // @name        The Pirate Bay Cleaner
-// @description	THERE ARE TOO MANY FEATURES TO LIST IN THE DESCRIPTION! Auto Sorting, Torrentifying, Theme Change, Search Change, SSL/HTTPS and more...
-// @namespace   https://greasyfork.org/scripts/1573-the-pirate-bay-cleaner
+// @description	Auto Sorting, Torrentifying, Theme Change, Search Change, SSL/HTTPS and more...
+// @namespace   https://github.com/Shoehart/The-Pirate-Bay-Cleaner
 // @icon        https://i.imgur.com/ZYNsXKW.png
-// @license 	The Pirate Bay Cleaner is licensed under a Creative Commons Attribution-ShareAlike 3.0 Unported License.
+// @license 	  The Pirate Bay Cleaner is licensed under a Creative Commons Attribution-ShareAlike 3.0 Unported License.
 // @author      BoKu
 // @contributor stuK
 // @contributor Moby2kBug
-// @version     3.12.4
+// @contributor RShT
+// @version     4.0
 // @require     https://code.jquery.com/jquery-3.2.1.min.js
 // @grant       GM_getValue
 // @grant       GM_setValue
@@ -15,70 +16,7 @@
 // @noframes
 // @match     *://*/*
 // ==/UserScript==
-/* Check for proxy sites, turn off if not in use. */
-//var GoogleSiteID = $('meta[name=google-site-verification]').attr("content");
-//if( GoogleSiteID == 'bERYeomIC5eBWlPLupPPYPYGA9GvAUKzFHh3WIw24Xs' ){
-
-var sitedomain = document.domain;
-if (sitedomain.substr(0, sitedomain.indexOf(".")) === 'thepiratebay') {
-
-  /* Set all the variables that I will need and defaults if not used etc. */
-  url = location.href;
-  sitedomain = document.domain;
-  torrentify = GM_getValue("torrentify", true);
-  imdb = GM_getValue("imdb", true);
-  linkify_all = GM_getValue("linkify_all", false);
-  info = GM_getValue("info", true);
-  alternate = GM_getValue("alternate", false);
-  ebay = GM_getValue("ebay", false);
-  amazon = GM_getValue("amazon", false);
-  color_code = GM_getValue("color_code", true);
-  color_code_yday = GM_getValue("color_code_yday", "#FF7F7F");
-  color_code_today = GM_getValue("color_code_today", "#FFE77F");
-  color_code_minutes = GM_getValue("color_code_minutes", "#7FFF8C");
-  trust = GM_getValue("trust", true);
-  filter = GM_getValue("filter", true);
-  filter_text = GM_getValue("filter_text", "malayalam|hdcam|dvdscr|hdcam|hdrip|webrip|vcd|tv rip|hindi|hdtvrip|screener|pdtv|telesync|hdts");
-  pornfilter = GM_getValue("pornfilter", false);
-  pornfilter_text = GM_getValue("pornfilter_text", "");
-  pornremove = GM_getValue("pornremove", false);
-  magnet = GM_getValue("magnet", false);
-  anonymous = GM_getValue("anonymous", true);
-  sorting = GM_getValue("sorting", false);
-  sorting_value = GM_getValue("sorting_value", "sd");
-  https = GM_getValue("https", true);
-  if (sitedomain != 'thepiratebay.org') {
-    https = false;
-    httpsdisabled = '<b>Notice: </b>HTTPS is not enabled on proxy sites';
-  }
-  theme = GM_getValue("theme", false);
-  duckduckgo = GM_getValue("duckduckgo", true);
-  stretch = GM_getValue("stretch", true);
-  ads = GM_getValue("ads", true);
-  single = GM_getValue("single", false);
-  images = GM_getValue("images", true);
-  comments = GM_getValue("comments", true);
-  loadallcomments = GM_getValue("loadallcomments", true);
-  remotetorrent = GM_getValue("remotetorrent", true);
-  remotetorrent_client = GM_getValue("remotetorrent_client", '1');
-  remotetorrent_client_mode = GM_getValue("remotetorrent_client_mode", 'lightbox');
-  transmission_url = GM_getValue("transmission_url", '');
-  if (transmission_url.length > 0 && !/^(ht)tps?:\/\//i.test(transmission_url)) transmission_url = 'http://' + transmission_url;
-  save_history = GM_getValue("save_history", true);
-  torrent_history = GM_getValue("torrent_history", '');
-  torrent_history_array = torrent_history.split(',');
-  save_faves = GM_getValue("save_faves", true);
-  the_faves = GM_getValue("the_faves", '');
-  the_faves_array = the_faves.split(',');
-  refresh = GM_getValue("refresh", false);
-  refresh_duration = GM_getValue("refresh_duration", 1800000)
-  refresh_duration_int = refresh_duration;
-  sizecontrol = GM_getValue("sizecontrol", false);
-  sizecontrol_size = GM_getValue("sizecontrol_size", 0);
-  sizecontrol_type = GM_getValue("sizecontrol_type", "KiB");
-  PageRefresher = false;
-  window.Escapable = false;
-  /* Declare all the functions that will be used throughout script */
+/* Declare all the functions that will be used throughout script */
   /* Set cookies function, name, value and days until expiry */
   function setCookie(c_name, value, exdays) {
     var exdate = new Date();
@@ -124,83 +62,6 @@ if (sitedomain.substr(0, sitedomain.indexOf(".")) === 'thepiratebay') {
       var day = tomorrow.getDate();
     }
     return year + '-' + (('' + month).length < 2 ? '0' : '') + month + '-' + (('' + day).length < 2 ? '0' : '') + day;
-  }
-  /* Used for increasing the brighrness of a colour by a percentage */
-  function increase_brightness(hex, percent) {
-    hex = hex.replace(/^\s*#|\s*$/g, '');
-    var r = parseInt(hex.substr(0, 2), 16),
-      g = parseInt(hex.substr(2, 2), 16),
-      b = parseInt(hex.substr(4, 2), 16);
-    return '#' +
-      ((0 | (1 << 8) + r + (256 - r) * percent / 100).toString(16)).substr(1) +
-      ((0 | (1 << 8) + g + (256 - g) * percent / 100).toString(16)).substr(1) +
-      ((0 | (1 << 8) + b + (256 - b) * percent / 100).toString(16)).substr(1);
-  }
-  /* If told to use DuckDuckGo search, the convert forms behind the scenes to use DuckDuckGo */
-  $('#fp > form').submit(function (e) {
-    e.preventDefault();
-    if (duckduckgo == true) {
-      //if (https==true){
-      if (url.substring(0, 5) == "https") {
-        var qval = $('.https_form').val();
-        $('.https_form').val('');
-      } else {
-        var qval = $('#inp > input').val();
-        $('#inp > input').val('');
-      }
-      GM_openInTab('https://duckduckgo.com/?q=' + qval + '+site%3A' + sitedomain, 'active');
-    } else {
-      this.submit();
-    }
-  });
-  $('#header > form').submit(function (e) {
-    e.preventDefault();
-    if (duckduckgo == true) {
-      //if (https==true){
-      if (url.substring(0, 5) = "https") {
-        var qval = $('.searchBox').val();
-        $('.searchBox').val('');
-      } else {
-        var qval = $('.inputbox').val();
-        $('.inputbox').val('');
-      }
-      GM_openInTab('https://duckduckgo.com/?q=' + qval + '+site%3A' + sitedomain, 'active');
-    } else {
-      this.submit();
-    }
-  });
-  /* If told to use HTTPS then set page to it */
-  if (url.substring(0, 5) == "http:" && https == true) {
-    if (!getCookie('lw') && single == true) {
-      setCookie('lw', 's', 999);
-    }
-    location.replace(url.replace(url.substring(0, 5), "https:"));
-  }
-  /*
-  // Disabled turning off HTTPS if setting is NO but site HTTPS is already on.
-   else if(url.substring(0,6)=="https:" && https==false){
-      if ( !getCookie('lw') && single==true ){
-          setCookie('lw','s',999);
-      }
-      location.replace(url.replace(url.substring(0,6),"http:"));
-  }
-  */
-  /* Update cookies that potentially causes popups to expire in the year 2050 */
-  var FutureDate = new Date();
-  FutureDate.setFullYear(2050);
-  if (getCookie('tpbpop')) {
-    document.cookie = "tpbpop=" + getCookie('tpbpop') + "; path=/; expires=" + FutureDate.toUTCString();
-  }
-  if (getCookie('__PPU_SESSION_0-3')) {
-    document.cookie = "__PPU_SESSION_0-3=" + getCookie('__PPU_SESSION_0-3') + "; path=/; expires=" + FutureDate.toUTCString();
-  }
-  document.cookie = "__PPU_CHECK=1; path=/; expires=" + FutureDate.toUTCString();
-  /* Checks if supposed to be single or double row and converts it if not set correctly */
-  if (!getCookie('lw') && single == true) {
-    setCookie('lw', 's', 999);
-    location.reload();
-  } else if (getCookie('lw') && single == false) {
-    setCookie('lw', '', -9999);
   }
   /* Convert milliseconds to real time HH:MM:SS */
   function msToTime(s) {
@@ -442,6 +303,7 @@ if (sitedomain.substr(0, sitedomain.indexOf(".")) === 'thepiratebay') {
             SettingsChanged = true;
             document.getElementById('tpbc_color_code_yday_color').style.backgroundColor = this.value;
             GM_setValue('color_code_yday', this.value);
+            console.log(this.value);
           }, false);
         document.getElementById('tbpc_formcontents').appendChild(tpbc_color_code_yday);
         $("<br>").appendTo('#tbpc_formcontents');
@@ -1118,6 +980,144 @@ if (sitedomain.substr(0, sitedomain.indexOf(".")) === 'thepiratebay') {
       }
     });
   }
+  /* Used for increasing the brighrness of a colour by a percentage */
+  function increase_brightness(hex, percent) {
+    hex = hex.replace(/^\s*#|\s*$/g, '');
+    var r = parseInt(hex.substr(0, 2), 16),
+      g = parseInt(hex.substr(2, 2), 16),
+      b = parseInt(hex.substr(4, 2), 16);
+    return '#' +
+      ((0 | (1 << 8) + r + (256 - r) * percent / 100).toString(16)).substr(1) +
+      ((0 | (1 << 8) + g + (256 - g) * percent / 100).toString(16)).substr(1) +
+      ((0 | (1 << 8) + b + (256 - b) * percent / 100).toString(16)).substr(1);
+  }
+  /* Use this function to display the settings window */
+  function ShowSettings() {
+    Lightbox('settings');
+  }
+
+var sitedomain = document.domain;
+if (sitedomain.substr(0, sitedomain.indexOf(".")) === 'thepiratebay') {
+
+/* Set all the variables that I will need and defaults if not used etc. */
+  url = location.href;
+  sitedomain = document.domain;
+  torrentify = GM_getValue("torrentify", true);
+  imdb = GM_getValue("imdb", true);
+  linkify_all = GM_getValue("linkify_all", false);
+  info = GM_getValue("info", true);
+  alternate = GM_getValue("alternate", false);
+  ebay = GM_getValue("ebay", false);
+  amazon = GM_getValue("amazon", false);
+  color_code = GM_getValue("color_code", true);
+  color_code_yday = GM_getValue("color_code_yday", "#FF7F7F");
+  color_code_today = GM_getValue("color_code_today", "#FFE77F");
+  color_code_minutes = GM_getValue("color_code_minutes", "#7FFF8C");
+  trust = GM_getValue("trust", true);
+  filter = GM_getValue("filter", true);
+  filter_text = GM_getValue("filter_text", "malayalam|hdcam|dvdscr|hdcam|hdrip|webrip|vcd|tv rip|hindi|hdtvrip|screener|pdtv|telesync|hdts");
+  pornfilter = GM_getValue("pornfilter", false);
+  pornfilter_text = GM_getValue("pornfilter_text", "");
+  pornremove = GM_getValue("pornremove", false);
+  magnet = GM_getValue("magnet", false);
+  anonymous = GM_getValue("anonymous", true);
+  sorting = GM_getValue("sorting", false);
+  sorting_value = GM_getValue("sorting_value", "sd");
+  https = GM_getValue("https", true);
+  if (sitedomain != 'thepiratebay.org') { https = false; httpsdisabled = '<b>Notice: </b>HTTPS is not enabled on proxy sites';}
+  theme = GM_getValue("theme", false);
+  duckduckgo = GM_getValue("duckduckgo", true);
+  stretch = GM_getValue("stretch", true);
+  ads = GM_getValue("ads", true);
+  single = GM_getValue("single", false);
+  images = GM_getValue("images", true);
+  comments = GM_getValue("comments", true);
+  loadallcomments = GM_getValue("loadallcomments", true);
+  remotetorrent = GM_getValue("remotetorrent", true);
+  remotetorrent_client = GM_getValue("remotetorrent_client", '1');
+  remotetorrent_client_mode = GM_getValue("remotetorrent_client_mode", 'lightbox');
+  transmission_url = GM_getValue("transmission_url", '');
+  if (transmission_url.length > 0 && !/^(ht)tps?:\/\//i.test(transmission_url)) transmission_url = 'http://' + transmission_url;
+  save_history = GM_getValue("save_history", true);
+  torrent_history = GM_getValue("torrent_history", '');
+  torrent_history_array = torrent_history.split(',');
+  save_faves = GM_getValue("save_faves", true);
+  the_faves = GM_getValue("the_faves", '');
+  the_faves_array = the_faves.split(',');
+  refresh = GM_getValue("refresh", false);
+  refresh_duration = GM_getValue("refresh_duration", 1800000)
+  refresh_duration_int = refresh_duration;
+  sizecontrol = GM_getValue("sizecontrol", false);
+  sizecontrol_size = GM_getValue("sizecontrol_size", 0);
+  sizecontrol_type = GM_getValue("sizecontrol_type", "KiB");
+  PageRefresher = false;
+  window.Escapable = false;
+
+
+  /* If told to use DuckDuckGo search, the convert forms behind the scenes to use DuckDuckGo */
+  $('#fp > form').submit(function (e) {
+    e.preventDefault();
+    if (duckduckgo == true) {
+      //if (https==true){
+      var qval = $('#inp > input').val();
+      console.log(qval + ' 2');
+      $('#inp > input').val('');
+      GM_openInTab('https://duckduckgo.com/?q=' + qval + '+site%3A' + sitedomain, 'active');
+    } else {
+      this.submit();
+    }
+  });
+  $('#header > form').submit(function (e) {
+    e.preventDefault();
+    if (duckduckgo == true) {
+      //if (https==true){
+      if (url.substring(0, 5) = "https") {
+        var qval = $('.searchBox').val();
+        console.log(qval + ' 3');
+        $('.searchBox').val('');
+      } else {
+        var qval = $('.inputbox').val();
+        console.log(qval + ' 4');
+        $('.inputbox').val('');
+      }
+      GM_openInTab('https://duckduckgo.com/?q=' + qval + '+site%3A' + sitedomain, 'active');
+    } else {
+      this.submit();
+    }
+  });
+  /* If told to use HTTPS then set page to it */
+  if (url.substring(0, 5) == "http:" && https == true) {
+    if (!getCookie('lw') && single == true) {
+      setCookie('lw', 's', 999);
+    }
+    location.replace(url.replace(url.substring(0, 5), "https:"));
+  }
+  /*
+  // Disabled turning off HTTPS if setting is NO but site HTTPS is already on.
+   else if(url.substring(0,6)=="https:" && https==false){
+      if ( !getCookie('lw') && single==true ){
+          setCookie('lw','s',999);
+      }
+      location.replace(url.replace(url.substring(0,6),"http:"));
+  }
+  */
+  /* Update cookies that potentially causes popups to expire in the year 2050 */
+  var FutureDate = new Date();
+  FutureDate.setFullYear(2050);
+  if (getCookie('tpbpop')) {
+    document.cookie = "tpbpop=" + getCookie('tpbpop') + "; path=/; expires=" + FutureDate.toUTCString();
+  }
+  if (getCookie('__PPU_SESSION_0-3')) {
+    document.cookie = "__PPU_SESSION_0-3=" + getCookie('__PPU_SESSION_0-3') + "; path=/; expires=" + FutureDate.toUTCString();
+  }
+  document.cookie = "__PPU_CHECK=1; path=/; expires=" + FutureDate.toUTCString();
+  /* Checks if supposed to be single or double row and converts it if not set correctly */
+  if (!getCookie('lw') && single == true) {
+    setCookie('lw', 's', 999);
+    location.reload();
+  } else if (getCookie('lw') && single == false) {
+    setCookie('lw', '', -9999);
+  }
   /* Check for Escape Key, used for some windows */
   $('body').keyup(function (e) {
     if (e.which == 27 && window.Escapable == true) {
@@ -1132,10 +1132,6 @@ if (sitedomain.substr(0, sitedomain.indexOf(".")) === 'thepiratebay') {
       window.Escapable = false;
     }
   });
-  /* Use this function to display the settings window */
-  function ShowSettings() {
-    Lightbox('settings');
-  }
   /* Some basic checking, if you entered a transmission url for custom torrent client */
   if (remotetorrent_client == '4' && transmission_url == '') {
     Lightbox('settings');

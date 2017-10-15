@@ -1,3 +1,7 @@
+### ***** UPDATED (14th October 2017) *****
+*FIX* Script is working again.
+Code clean up. Few parts rewriten. Update to jQuery 3.2.1 and so on.
+
 ### ***** UPDATED (22nd February 2015) *****
 
 *NEW* Add the option to load all comments against a torrent.

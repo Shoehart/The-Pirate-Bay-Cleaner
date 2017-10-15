@@ -66,28 +66,19 @@
   /* Convert milliseconds to real time HH:MM:SS */
   function msToTime(s) {
     var arrTime = new Array();
-    var ms = s % 1000;
-    s = (s - ms) / 1000;
-    var secs = s % 60;
-    s = (s - secs) / 60;
-    var mins = s % 60;
-    var hrs = (s - mins) / 60;
-    strHrs = "0" + hrs;
-    strHrs = strHrs.substr(strHrs.length - 2);
-    strMins = "0" + mins;
-    strMins = strMins.substr(strMins.length - 2);
-    strSecs = "0" + secs;
-    strSecs = strSecs.substr(strSecs.length - 2);
-    if (hrs > 0) {
-      arrTime['TheTime'] = strHrs + ':' + strMins;
-      arrTime['TheTimeAsWords'] = hrs + " Hours and " + mins + " Minutes";
-    } else if (mins > 0) {
-      arrTime['TheTime'] = strMins + ':' + strSecs;
-      arrTime['TheTimeAsWords'] = mins + " Minutes and " + secs + " Seconds";
-    } else if (secs > 0) {
-      arrTime['TheTime'] = strSecs;
-      arrTime['TheTimeAsWords'] = secs + " Seconds";
-    }
+    
+        var ms = parseInt((s%1000)/100)
+        , secs = parseInt((s/1000)%60)
+        , mins = parseInt((s/(60000))%60)
+        , hrs = parseInt((s/(3600000))%24);
+
+        hrs = (hrs < 10) ? "0" + hrs : hrs;
+        mins = (mins < 10) ? "0" + mins : mins;
+        secs = (secs < 10) ? "0" + secs : secs;
+
+    if (~~hrs > 0) {arrTime['TheTime'] = hrs + ':' + mins; arrTime['TheTimeAsWords'] = hrs + " Hours and " + mins + " Minutes";}
+    else if (~~mins > 0) {arrTime['TheTime'] = mins + ':' + secs; arrTime['TheTimeAsWords'] = mins + " Minutes and " + secs + " Seconds";}
+    else if (~~secs > 0) {arrTime['TheTime'] = secs; arrTime['TheTimeAsWords'] = secs + " Seconds";}
     return arrTime;
   }
   /* The page refresh function */
@@ -821,117 +812,21 @@
           SettingsChanged = true;
           GM_setValue('refresh_duration', this.value);
         }, false);
+        
         document.getElementById('tbpc_formcontents').appendChild(tpbc_refresh_duration);
-        var time_1 = document.createElement("option");
-        time_1.value = '60000';
-        time_1.innerHTML = 'Minute';
-        if (refresh_duration_int == '60000') time_1.selected = true;
-        tpbc_refresh_duration.appendChild(time_1);
-        var time_1 = document.createElement("option");
-        time_1.value = '300000';
-        time_1.innerHTML = '5 Minutes';
-        if (refresh_duration_int == '300000') time_1.selected = true;
-        tpbc_refresh_duration.appendChild(time_1);
-        var time_1 = document.createElement("option");
-        time_1.value = '600000';
-        time_1.innerHTML = '10 Minutes';
-        if (refresh_duration_int == '600000') time_1.selected = true;
-        tpbc_refresh_duration.appendChild(time_1);
-        var time_1 = document.createElement("option");
-        time_1.value = '900000';
-        time_1.innerHTML = '15 Minutes';
-        if (refresh_duration_int == '900000') time_1.selected = true;
-        tpbc_refresh_duration.appendChild(time_1);
-        var time_1 = document.createElement("option");
-        time_1.value = '1200000';
-        time_1.innerHTML = '20 Minutes';
-        if (refresh_duration_int == '1200000') time_1.selected = true;
-        tpbc_refresh_duration.appendChild(time_1);
-        var time_1 = document.createElement("option");
-        time_1.value = '1500000';
-        time_1.innerHTML = '25 Minutes';
-        if (refresh_duration_int == '1500000') time_1.selected = true;
-        tpbc_refresh_duration.appendChild(time_1);
-        var time_1 = document.createElement("option");
-        time_1.value = '1800000';
-        time_1.innerHTML = '30 Minutes';
-        if (refresh_duration_int == '1800000') time_1.selected = true;
-        tpbc_refresh_duration.appendChild(time_1);
-        var time_1 = document.createElement("option");
-        time_1.value = '2700000';
-        time_1.innerHTML = '45 Minutes';
-        if (refresh_duration_int == '2700000') time_1.selected = true;
-        tpbc_refresh_duration.appendChild(time_1);
-        var time_1 = document.createElement("option");
-        time_1.value = '3600000';
-        time_1.innerHTML = 'Hour';
-        if (refresh_duration_int == '3600000') time_1.selected = true;
-        tpbc_refresh_duration.appendChild(time_1);
-        var time_1 = document.createElement("option");
-        time_1.value = '7200000';
-        time_1.innerHTML = '2 Hours';
-        if (refresh_duration_int == '7200000') time_1.selected = true;
-        tpbc_refresh_duration.appendChild(time_1);
-        var time_1 = document.createElement("option");
-        time_1.value = '10800000';
-        time_1.innerHTML = '3 Hours';
-        if (refresh_duration_int == '10800000') time_1.selected = true;
-        tpbc_refresh_duration.appendChild(time_1);
-        var time_1 = document.createElement("option");
-        time_1.value = '14400000';
-        time_1.innerHTML = '4 Hours';
-        if (refresh_duration_int == '14400000') time_1.selected = true;
-        tpbc_refresh_duration.appendChild(time_1);
-        var time_1 = document.createElement("option");
-        time_1.value = '18000000';
-        time_1.innerHTML = '5 Hours';
-        if (refresh_duration_int == '18000000') time_1.selected = true;
-        tpbc_refresh_duration.appendChild(time_1);
-        var time_1 = document.createElement("option");
-        time_1.value = '21600000';
-        time_1.innerHTML = '6 Hours';
-        if (refresh_duration_int == '21600000') time_1.selected = true;
-        tpbc_refresh_duration.appendChild(time_1);
-        var time_1 = document.createElement("option");
-        time_1.value = '25200000';
-        time_1.innerHTML = '7 Hours';
-        if (refresh_duration_int == '25200000') time_1.selected = true;
-        tpbc_refresh_duration.appendChild(time_1);
-        var time_1 = document.createElement("option");
-        time_1.value = '28800000';
-        time_1.innerHTML = '8 Hours';
-        if (refresh_duration_int == '28800000') time_1.selected = true;
-        tpbc_refresh_duration.appendChild(time_1);
-        var time_1 = document.createElement("option");
-        time_1.value = '32400000';
-        time_1.innerHTML = '9 Hours';
-        if (refresh_duration_int == '32400000') time_1.selected = true;
-        tpbc_refresh_duration.appendChild(time_1);
-        var time_1 = document.createElement("option");
-        time_1.value = '36000000';
-        time_1.innerHTML = '10 Hours';
-        if (refresh_duration_int == '36000000') time_1.selected = true;
-        tpbc_refresh_duration.appendChild(time_1);
-        var time_1 = document.createElement("option");
-        time_1.value = '39600000';
-        time_1.innerHTML = '11 Hours';
-        if (refresh_duration_int == '39600000') time_1.selected = true;
-        tpbc_refresh_duration.appendChild(time_1);
-        var time_1 = document.createElement("option");
-        time_1.value = '43200000';
-        time_1.innerHTML = '12 Hours';
-        if (refresh_duration_int == '43200000') time_1.selected = true;
-        tpbc_refresh_duration.appendChild(time_1);
-        var time_1 = document.createElement("option");
-        time_1.value = '64800000';
-        time_1.innerHTML = '18 Hours';
-        if (refresh_duration_int == '64800000') time_1.selected = true;
-        tpbc_refresh_duration.appendChild(time_1);
-        var time_1 = document.createElement("option");
-        time_1.value = '86400000';
-        time_1.innerHTML = '24 Hours';
-        if (refresh_duration_int == '86400000') time_1.selected = true;
-        tpbc_refresh_duration.appendChild(time_1);
+        var tempTimeArr = [60000,300000,600000,900000,1200000,1500000,1800000,2700000,3600000,7200000,10800000,14400000,18000000,21600000,25200000,28800000,32400000,36000000,39600000,43200000,64800000];
+        
+        for(var i = 0; i < tempTimeArr.length; i++){
+          var time_1 = document.createElement("option");
+          var mins = parseInt((tempTimeArr[i]/(60000))%60)
+          , hrs = parseInt((tempTimeArr[i]/(3600000))%24);
+          time_1.value = tempTimeArr[i];
+          if (hrs > 0){time_1.innerHTML = hrs + ' Hours';}
+          else {time_1.innerHTML = mins + ' Minutes';}
+          if (refresh_duration_int == tempTimeArr[i]) time_1.selected = true;
+          tpbc_refresh_duration.appendChild(time_1);
+        }
+        
         $("<br>").appendTo('#tbpc_formcontents');
         $("#tpbc_lightbox").css({
           'background': '#000'
@@ -1777,19 +1672,19 @@ if (sitedomain.substr(0, sitedomain.indexOf(".")) === 'thepiratebay') {
     $('#TPBlogo').attr('src', '//i.imgur.com/i1jaoxr.png');
     $('#fp').prepend('<img src="//i.imgur.com/mFspNKB.png">');
     $('body').css({
-      'background-color': '#000000'
+      'background-color': '#3a3a3a'
     });
     $('td').css({
-      'border': '1px solid #000000'
+      'border': '1px solid #fafafa'
     });
     $('#searchResult > tbody').css({
-      'border': '1px solid #000000'
+      'border': '1px solid #fafafa'
     });
     $('#searchResult > thead > tr > th').css({
       'background-color': '#505050'
     });
     $('#searchResult > thead > tr > th').css({
-      'border': '1px solid #000000'
+      'border': '1px solid #fafafa'
     });
     $('a').css({
       'color': '#0094FF'

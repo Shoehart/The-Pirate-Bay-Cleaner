@@ -66,7 +66,7 @@
   /* Convert milliseconds to real time HH:MM:SS */
   function msToTime(s) {
     var arrTime = new Array();
-    
+
         var ms = parseInt((s%1000)/100)
         , secs = parseInt((s/1000)%60)
         , mins = parseInt((s/(60000))%60)
@@ -622,7 +622,7 @@
         tpbc_remotetorrent_client.addEventListener('change', function () {
           SettingsChanged = true;
           GM_setValue('remotetorrent_client', this.value);
-          if (this.value == '4') {
+          if (this.value == '5') {
             $('#transmission_url').fadeIn('slow', function () {});
           } else {
             $('#transmission_url').fadeOut('slow', function () {});
@@ -634,37 +634,46 @@
         client_1.innerHTML = 'µTorrent';
         if (remotetorrent_client == '1') client_1.selected = true;
         tpbc_remotetorrent_client.appendChild(client_1);
+
         var client_2 = document.createElement("option");
         client_2.value = '2';
         client_2.innerHTML = 'Vuze';
         if (remotetorrent_client == '2') client_2.selected = true;
         tpbc_remotetorrent_client.appendChild(client_2);
+
         var client_3 = document.createElement("option");
         client_3.value = '3';
         client_3.innerHTML = 'BitTorrent';
         if (remotetorrent_client == '3') client_3.selected = true;
         tpbc_remotetorrent_client.appendChild(client_3);
+
         var client_4 = document.createElement("option");
         client_4.value = '4';
-        client_4.innerHTML = 'Transmission';
+        client_4.innerHTML = 'qBitTorrent';
         if (remotetorrent_client == '4') client_4.selected = true;
         tpbc_remotetorrent_client.appendChild(client_4);
-        var client_4_url = document.createElement("input");
-        client_4_url.type = 'text';
-        client_4_url.id = 'transmission_url';
-        client_4_url.value = transmission_url;
-        if (remotetorrent_client == '4') {
-          client_4_url.style.cssText = "width:500px;padding:2px;";
+
+        var client_5 = document.createElement("option");
+        client_5.value = '5';
+        client_5.innerHTML = 'Transmission';
+        if (remotetorrent_client == '5') client_5.selected = true;
+        tpbc_remotetorrent_client.appendChild(client_5);
+        var client_5_url = document.createElement("input");
+        client_5_url.type = 'text';
+        client_5_url.id = 'transmission_url';
+        client_5_url.value = transmission_url;
+        if (remotetorrent_client == '5') {
+          client_5_url.style.cssText = "width:500px;padding:2px;";
         } else {
-          client_4_url.style.cssText = "width:500px;padding:2px;display:none;";
+          client_5_url.style.cssText = "width:500px;padding:2px;display:none;";
         }
-        client_4_url.placeholder = "Example: http://192.168.178.100:9090";
-        client_4_url.addEventListener('keyup',
+        client_5_url.placeholder = "Example: http://192.168.178.100:9090";
+        client_5_url.addEventListener('keyup',
           function () {
             SettingsChanged = true;
             GM_setValue('transmission_url', $.trim(this.value));
           }, false);
-        document.getElementById('tbpc_formcontents').appendChild(client_4_url);
+        document.getElementById('tbpc_formcontents').appendChild(client_5_url);
         $("<br>").appendTo('#tbpc_formcontents');
         var remotetorrent_client_mode_lightbox = document.createElement('input');
         remotetorrent_client_mode_lightbox.style.cssText = "margin-left:25px;margin-right:10px;";
@@ -812,10 +821,10 @@
           SettingsChanged = true;
           GM_setValue('refresh_duration', this.value);
         }, false);
-        
+
         document.getElementById('tbpc_formcontents').appendChild(tpbc_refresh_duration);
         var tempTimeArr = [60000,300000,600000,900000,1200000,1500000,1800000,2700000,3600000,7200000,10800000,14400000,18000000,21600000,25200000,28800000,32400000,36000000,39600000,43200000,64800000];
-        
+
         for(var i = 0; i < tempTimeArr.length; i++){
           var time_1 = document.createElement("option");
           var mins = parseInt((tempTimeArr[i]/(60000))%60)
@@ -826,7 +835,7 @@
           if (refresh_duration_int == tempTimeArr[i]) time_1.selected = true;
           tpbc_refresh_duration.appendChild(time_1);
         }
-        
+
         $("<br>").appendTo('#tbpc_formcontents');
         $("#tpbc_lightbox").css({
           'background': '#000'
@@ -835,7 +844,7 @@
     }
     /* If we click anywhere on the lightbox then it closes and checks for things that have changed and alerts etc. */
     $("#tpbc_lightbox").click(function () {
-      if ($(tpbc_remotetorrent_client).val() == '4' && $.trim($(client_4_url).val()) == '') {
+      if ($(tpbc_remotetorrent_client).val() == '5' && $.trim($(client_5_url).val()) == '') {
         alert('You have not entered your Transmission URL');
         $('#transmission_url').focus();
       } else {
@@ -856,7 +865,7 @@
     });
     /* Same as above, but against a different object. Check for things that may have changed and alerts or refreshes etc. */
     $("#tpbc_holder").click(function () {
-      if ($(tpbc_remotetorrent_client).val() == '4' && $.trim($(client_4_url).val()) == '') {
+      if ($(tpbc_remotetorrent_client).val() == '5' && $.trim($(client_5_url).val()) == '') {
         alert('You have not entered your Transmission URL');
         $('#transmission_url').focus();
       } else {
@@ -919,7 +928,7 @@ if (sitedomain.substr(0, sitedomain.indexOf(".")) === 'thepiratebay') {
   sorting = GM_getValue("sorting", false);
   sorting_value = GM_getValue("sorting_value", "sd");
   https = GM_getValue("https", true);
-  if (sitedomain != 'thepiratebay.org') { https = false; httpsdisabled = '<b>Notice: </b>HTTPS is not enabled on proxy sites';}
+  if (sitedomain != 'thepiratebay.org') { https = false; var httpsdisabled = '<b>Notice: </b>HTTPS is not enabled on proxy sites';}
   theme = GM_getValue("theme", false);
   duckduckgo = GM_getValue("duckduckgo", true);
   stretch = GM_getValue("stretch", true);
@@ -1028,7 +1037,7 @@ if (sitedomain.substr(0, sitedomain.indexOf(".")) === 'thepiratebay') {
     }
   });
   /* Some basic checking, if you entered a transmission url for custom torrent client */
-  if (remotetorrent_client == '4' && transmission_url == '') {
+  if (remotetorrent_client == '5' && transmission_url == '') {
     Lightbox('settings');
     alert('You have not entered your Transmission URL');
     $('#transmission_url').focus();
@@ -1122,7 +1131,7 @@ if (sitedomain.substr(0, sitedomain.indexOf(".")) === 'thepiratebay') {
           }
         });
         break;
-        /* Vuze */
+      /* Vuze */
       case '2':
         $('<img />', {
           id: 'torrent_client',
@@ -1139,7 +1148,7 @@ if (sitedomain.substr(0, sitedomain.indexOf(".")) === 'thepiratebay') {
           }
         });
         break;
-        /* Bittorent */
+      /* Bittorent */
       case '3':
         $('<img />', {
           id: 'torrent_client',
@@ -1156,8 +1165,27 @@ if (sitedomain.substr(0, sitedomain.indexOf(".")) === 'thepiratebay') {
           }
         });
         break;
-        /* Transmission */
+      /* qBitTorrent */
       case '4':
+        $('<img />', {
+          id: 'torrent_client',
+          title: 'Open Remote qBitTorrent',
+          src: '//imgur.com/iKhX39L.png',
+          style: 'cursor:pointer; float:right; margin-right:5px;',
+          height: '40',
+          width: '40'
+        }).appendTo("#tpbc_btn_container");
+        $('#torrent_client').on('click', function () {
+          if (remotetorrent_client_mode == 'window') {
+            GM_openInTab('http://192.168.0.99:8080/', 'active');
+          } else if (remotetorrent_client_mode == 'lightbox') {
+            LightboxBG();
+            Lightbox('www', "http://192.168.0.99:8080/", 'nobg');
+          }
+        });
+        break;
+      /* Transmission */
+      case '5':
         $('<img />', {
           id: 'torrent_client',
           title: 'Open Transmission',
@@ -1173,6 +1201,7 @@ if (sitedomain.substr(0, sitedomain.indexOf(".")) === 'thepiratebay') {
           }
         });
         break;
+        /* qBitTorrent */
     }
   }
   /* Checks to see if the auto refresh feature is turned on */
@@ -1394,7 +1423,7 @@ if (sitedomain.substr(0, sitedomain.indexOf(".")) === 'thepiratebay') {
             if (single == false) var torrentName = $(this).parent().children('.detName').children('a:first').text();
             else var torrentName = $(this).parent().parent().children('td:nth-child(2)').children('a').text();
             LightboxBG();
-            Lightbox('www', 'https://kickass.to/usearch/' + torrentName + '/', 'nobg');
+            Lightbox('www', 'https://kickass2.nz/usearch/' + torrentName + '/', 'nobg');
           }, false);
         if (single == false) $($(this).children('td:nth-child(2)').children('div:first')).after(tpbc_alternate_icon);
         else $($(this).children('td:nth-child(4)').children('nobr')).after(tpbc_alternate_icon);
